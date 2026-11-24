@@ -8,6 +8,7 @@ import {
   STORAGE_KEY_PLANS,
   STORAGE_KEY_ACTIVE_ID,
   STORAGE_KEY_ONBOARDING,
+  STORAGE_KEY_VIEW_MODE,
   normalizePlanToCurriculum,
 } from "@/lib/curriculumAdapter";
 import { playChime } from "@/lib/utils";
@@ -66,7 +67,7 @@ export default function CreatePlanRoute() {
 
       const normalized = normalizePlanToCurriculum(newSavedPlan);
 
-      // Persist in localStorage
+      // Persist in localStorage and sessionStorage
       try {
         const stored = localStorage.getItem(STORAGE_KEY_PLANS);
         const plans: SavedPlan[] = stored ? JSON.parse(stored) : [];
@@ -74,12 +75,14 @@ export default function CreatePlanRoute() {
         localStorage.setItem(STORAGE_KEY_PLANS, JSON.stringify(updatedPlans));
         localStorage.setItem(STORAGE_KEY_ACTIVE_ID, normalized.id);
         localStorage.setItem(STORAGE_KEY_ONBOARDING, JSON.stringify(selection));
+        localStorage.setItem("study_planner_active_nav_tab_v1", "dashboard");
+        sessionStorage.setItem(STORAGE_KEY_VIEW_MODE, "dashboard");
       } catch (storageErr) {
         console.error("Storage error:", storageErr);
       }
 
       playChime("complete");
-      router.push("/");
+      router.push("/?view=dashboard");
     } catch (err: unknown) {
       const msg =
         err instanceof Error
@@ -96,6 +99,7 @@ export default function CreatePlanRoute() {
   return (
     <CourseSelectionPage
       onStartLearning={handleStartLearning}
+      onBackToLanding={() => router.push("/")}
       initialSelection={initialSelection}
       isGenerating={isGenerating}
       generationError={generationError}

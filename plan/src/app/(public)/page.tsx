@@ -273,8 +273,17 @@ export default function Home() {
           } catch { }
         }
 
+        // Check URL search params for direct view specification (e.g. /?view=dashboard)
+        const urlParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+        const urlView = urlParams?.get("view") as AppViewMode | null;
+
         // Preserve tab refresh view state within the current session; new visits start on landing
-        if (sessionViewMode && ["landing", "login", "signup", "dashboard"].includes(sessionViewMode)) {
+        if (urlView && ["landing", "login", "signup", "dashboard"].includes(urlView)) {
+          setViewMode(urlView);
+          try {
+            sessionStorage.setItem(STORAGE_KEY_VIEW_MODE, urlView);
+          } catch { }
+        } else if (sessionViewMode && ["landing", "login", "signup", "dashboard"].includes(sessionViewMode)) {
           setViewMode(sessionViewMode);
         } else {
           setViewMode("landing");
@@ -438,6 +447,23 @@ export default function Home() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleOpenCreatePlan]);
+
+  // Handle browser back/forward or direct URL view updates
+  useEffect(() => {
+    const handlePopState = () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlView = urlParams.get("view") as AppViewMode | null;
+      if (urlView && ["landing", "login", "signup", "dashboard"].includes(urlView)) {
+        setViewMode(urlView);
+        try {
+          sessionStorage.setItem(STORAGE_KEY_VIEW_MODE, urlView);
+        } catch { }
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   // Active Plan Resolution
   const activePlan = useMemo(() => {
@@ -857,7 +883,12 @@ export default function Home() {
         onOpenCreateModal={() => handleOpenCreatePlan()}
         onOpenHistoryModal={() => setIsHistoryDrawerOpen(true)}
         onOpenAbout={() => setIsAboutModalOpen(true)}
-        onReturnHome={() => setViewMode("landing")}
+        onReturnHome={() => {
+          setViewMode("landing");
+          if (typeof window !== "undefined") {
+            window.history.replaceState(null, "", "/");
+          }
+        }}
         activeTimer={activeTimer}
         completedTasksMap={completedTasksMap}
         activeNavTab={activeNavTab}

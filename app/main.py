@@ -3,8 +3,28 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from agent import generate_plan, handle_chat_turn, StudyPlan, ChatMessage
+from contextlib import asynccontextmanager
+from dotenv import load_dotenv
 
-app = FastAPI(title="CuratePlan AI Study Planner API", version="2.0.0")
+from database.db import (
+    connect_to_mongodb,
+    close_mongodb_connection,
+)
+
+load_dotenv()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await connect_to_mongodb()
+    yield
+    await close_mongodb_connection()
+
+app = FastAPI(
+    title="CuratePlan AI Study Planner API",
+    version="2.0.0",
+    lifespan=lifespan,
+)
 
 # Allow Next.js frontend to connect from standard local dev ports
 app.add_middleware(
