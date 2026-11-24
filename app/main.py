@@ -11,6 +11,14 @@ from database.db import (
     close_mongodb_connection,
 )
 
+from database.curriculum import (
+    create_curriculum,
+    get_all_curricula,
+    get_curriculum_by_id,
+    update_curriculum,
+    delete_curriculum,
+)
+
 load_dotenv()
 
 
@@ -103,6 +111,106 @@ def chat_turn(payload: ChatRequest):
         return ChatResponse(**result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/curricula")
+async def list_curricula():
+    try:
+        return await get_all_curricula()
+    except Exception as e:
+        print(f"[Backend] Error retrieving curricula: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve curricula")
+
+
+@app.post("/api/curricula", status_code=201)
+async def save_curriculum(payload: Dict[str, Any]):
+    try:
+        if not payload.get("subject"):
+            raise HTTPException(
+                status_code=422,
+                detail="Curriculum subject is required",
+            )
+
+        if not isinstance(payload.get("schedule"), list):
+            raise HTTPException(
+                status_code=422,
+                detail="Curriculum schedule must be a list",
+            )
+
+        return await create_curriculum(payload)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[Backend] Error saving curriculum: {e}")
+        raise HTTPException(status_code=500, detail="Failed to save curriculum")
+
+
+@app.get("/api/curricula/{curriculum_id}")
+async def retrieve_curriculum(curriculum_id: str):
+    try:
+        curriculum = await get_curriculum_by_id(curriculum_id)
+
+        if curriculum is None:
+            raise HTTPException(status_code=404, detail="Curriculum not found")
+
+        return curriculum
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[Backend] Error retrieving curriculum: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve curriculum")
+
+
+@app.put("/api/curricula/{curriculum_id}")
+async def edit_curriculum(
+    curriculum_id: str,
+    payload: Dict[str, Any],
+):
+    try:
+        if not payload.get("subject"):
+            raise HTTPException(
+                status_code=422,
+                detail="Curriculum subject is required",
+            )
+
+        if not isinstance(payload.get("schedule"), list):
+            raise HTTPException(
+                status_code=422,
+                detail="Curriculum schedule must be a list",
+            )
+
+        curriculum = await update_curriculum(curriculum_id, payload)
+
+        if curriculum is None:
+            raise HTTPException(status_code=404, detail="Curriculum not found")
+
+        return curriculum
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[Backend] Error updating curriculum: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update curriculum")
+
+
+@app.delete("/api/curricula/{curriculum_id}")
+async def remove_curriculum(curriculum_id: str):
+    try:
+        deleted = await delete_curriculum(curriculum_id)
+
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Curriculum not found")
+
+        return {"message": "Curriculum deleted successfully"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[Backend] Error deleting curriculum: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete curriculum")
+
 
 if __name__ == "__main__":
     import uvicorn
