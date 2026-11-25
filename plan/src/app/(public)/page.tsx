@@ -19,7 +19,12 @@ import { SignupPage } from "@/components/auth/SignupPage";
 import { exportPlanToMarkdown, downloadFile, generateICS, playChime } from "@/lib/utils";
 import { exportCurriculumToPDF } from "@/lib/pdfGenerator";
 import {
-  STORAGE_KEY_PLANS,
+  fetchCurricula,
+  createCurriculum,
+  updateCurriculum,
+  deleteCurriculum,
+} from "@/lib/curriculumApi";
+import {
   STORAGE_KEY_ACTIVE_ID,
   STORAGE_KEY_PROGRESS,
   STORAGE_KEY_SIDEBAR_COLLAPSED,
@@ -42,7 +47,7 @@ import {
 } from "lucide-react";
 
 const DEFAULT_SEED_PLAN: SavedPlan = {
-  id: "plan_seed_enterprise_01",
+  id: "draft_seed_enterprise_01",
   subject: "Full-Stack Distributed Systems Architecture",
   target_timeframe: "2 Weeks",
   daily_hours: 2.5,
@@ -163,10 +168,10 @@ const DEFAULT_SEED_PLAN: SavedPlan = {
 };
 
 const DEFAULT_COMPLETED_SEED: Record<string, boolean> = {
-  "plan_seed_enterprise_01_0_0": true,
-  "plan_seed_enterprise_01_0_1": true,
-  "plan_seed_enterprise_01_0_2": true,
-  "plan_seed_enterprise_01_1_0": true,
+  "draft_seed_enterprise_01_0_0": true,
+  "draft_seed_enterprise_01_0_1": true,
+  "draft_seed_enterprise_01_0_2": true,
+  "draft_seed_enterprise_01_1_0": true,
 };
 
 export default function Home() {
@@ -180,6 +185,8 @@ export default function Home() {
 
   // Core Data State
   const [savedPlans, setSavedPlans] = useState<SavedPlan[]>([]);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [isLoadingCurricula, setIsLoadingCurricula] = useState(true);
   const [activePlanId, setActivePlanId] = useState<string | null>(null);
   const [completedTasksMap, setCompletedTasksMap] = useState<Record<string, boolean>>({});
   const [sessions, setSessions] = useState<StudySession[]>([]);
@@ -213,15 +220,18 @@ export default function Home() {
 
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Hydration load from localStorage
+  // Load saved curricula from MongoDB and restore temporary drafts from this session.
+  // Other lightweight UI preferences and progress remain in browser storage.
   useEffect(() => {
-    queueMicrotask(() => {
+    let cancelled = false;
+
+    const hydrate = async () => {
       try {
         if (typeof document !== "undefined") {
           document.documentElement.classList.remove("dark");
           document.documentElement.classList.add("light");
         }
-        const storedPlans = localStorage.getItem(STORAGE_KEY_PLANS);
+
         const storedActiveId = localStorage.getItem(STORAGE_KEY_ACTIVE_ID);
         const storedProgress = localStorage.getItem(STORAGE_KEY_PROGRESS);
         const storedTimer = localStorage.getItem(STORAGE_KEY_ACTIVE_TIMER);
@@ -229,26 +239,46 @@ export default function Home() {
         const storedSettings = localStorage.getItem(STORAGE_KEY_SETTINGS);
         const storedOnboarding = localStorage.getItem(STORAGE_KEY_ONBOARDING);
         const sessionViewMode = sessionStorage.getItem(STORAGE_KEY_VIEW_MODE) as AppViewMode | null;
+        const pendingDraftRaw = sessionStorage.getItem("curateplan_pending_draft_v1");
 
-        if (storedPlans) {
-          const parsed = JSON.parse(storedPlans) as SavedPlan[];
-          const normalized = parsed.map((p) => normalizePlanToCurriculum(p));
-          setSavedPlans(normalized);
-          if (storedActiveId && normalized.some((p) => p.id === storedActiveId)) {
-            setActivePlanId(storedActiveId);
-          } else if (normalized.length > 0) {
-            setActivePlanId(normalized[0].id);
+        let pendingDraft: SavedPlan | null = null;
+        if (pendingDraftRaw) {
+          try {
+            pendingDraft = normalizePlanToCurriculum(JSON.parse(pendingDraftRaw) as SavedPlan);
+          } catch (error) {
+            console.warn("Could not restore the pending curriculum draft:", error);
+            sessionStorage.removeItem("curateplan_pending_draft_v1");
           }
-        } else {
-          // First-time visit: Initialize with default enterprise seed plan
-          const normalizedSeed = normalizePlanToCurriculum(DEFAULT_SEED_PLAN, DEFAULT_COMPLETED_SEED);
-          setSavedPlans([normalizedSeed]);
-          setActivePlanId(normalizedSeed.id);
-          setCompletedTasksMap(DEFAULT_COMPLETED_SEED);
         }
 
-        if (storedProgress) {
-          setCompletedTasksMap(JSON.parse(storedProgress));
+        const remotePlans = await fetchCurricula();
+        if (cancelled) return;
+
+        let plans = remotePlans.map((plan) => normalizePlanToCurriculum(plan));
+        if (pendingDraft) {
+          plans = [pendingDraft, ...plans.filter((plan) => plan.id !== pendingDraft!.id)];
+        }
+
+        let progress: Record<string, boolean> = storedProgress ? JSON.parse(storedProgress) : {};
+
+        // Keep the existing demo experience, but make it an unsaved draft.
+        if (plans.length === 0) {
+          const seed = normalizePlanToCurriculum(DEFAULT_SEED_PLAN, DEFAULT_COMPLETED_SEED);
+          plans = [seed];
+          progress = { ...DEFAULT_COMPLETED_SEED, ...progress };
+        }
+
+        setSavedPlans(plans);
+        setCompletedTasksMap(progress);
+
+        if (storedActiveId && plans.some((plan) => plan.id === storedActiveId)) {
+          setActivePlanId(storedActiveId);
+        } else if (pendingDraft) {
+          setActivePlanId(pendingDraft.id);
+        } else if (plans.length > 0) {
+          setActivePlanId(plans[0].id);
+        } else {
+          setActivePlanId(null);
         }
 
         if (storedSessions) {
@@ -257,68 +287,57 @@ export default function Home() {
           setSessions(generateSeedSessions(DEFAULT_SEED_PLAN.id));
         }
 
-        if (storedSettings) {
-          setUserSettings(JSON.parse(storedSettings));
-        }
+        if (storedSettings) setUserSettings(JSON.parse(storedSettings));
 
-        // Hydrate last selected dashboard view
         const storedNavTab = localStorage.getItem("study_planner_active_nav_tab_v1");
         if (storedNavTab && ["dashboard", "curriculum", "analytics"].includes(storedNavTab)) {
           setActiveNavTab(storedNavTab);
         }
 
         if (storedOnboarding) {
-          try {
-            setOnboardingSelection(JSON.parse(storedOnboarding));
-          } catch { }
+          try { setOnboardingSelection(JSON.parse(storedOnboarding)); } catch { /* ignore invalid preference */ }
         }
 
-        // Check URL search params for direct view specification (e.g. /?view=dashboard)
         const urlParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
         const urlView = urlParams?.get("view") as AppViewMode | null;
-
-        // Preserve tab refresh view state within the current session; new visits start on landing
         if (urlView && ["landing", "login", "signup", "dashboard"].includes(urlView)) {
           setViewMode(urlView);
-          try {
-            sessionStorage.setItem(STORAGE_KEY_VIEW_MODE, urlView);
-          } catch { }
+          sessionStorage.setItem(STORAGE_KEY_VIEW_MODE, urlView);
         } else if (sessionViewMode && ["landing", "login", "signup", "dashboard"].includes(sessionViewMode)) {
           setViewMode(sessionViewMode);
         } else {
           setViewMode("landing");
         }
 
-        // Default to collapsed rail (logos only) on open
         setSidebarCollapsed(true);
 
         if (storedTimer) {
           const parsedTimer = JSON.parse(storedTimer) as ActiveTimer;
-          setActiveTimer({
-            ...parsedTimer,
-            isRunning: false,
-          });
+          setActiveTimer({ ...parsedTimer, isRunning: false });
         }
-      } catch {
-        const normalizedSeed = normalizePlanToCurriculum(DEFAULT_SEED_PLAN, DEFAULT_COMPLETED_SEED);
-        setSavedPlans([normalizedSeed]);
-        setActivePlanId(normalizedSeed.id);
-        setSessions(generateSeedSessions(DEFAULT_SEED_PLAN.id));
-        setViewMode("landing");
+      } catch (error) {
+        console.error("[CuratePlan] Failed to load curricula from the backend:", error);
+        if (!cancelled) {
+          const seed = normalizePlanToCurriculum(DEFAULT_SEED_PLAN, DEFAULT_COMPLETED_SEED);
+          setSavedPlans([seed]);
+          setActivePlanId(seed.id);
+          setCompletedTasksMap(DEFAULT_COMPLETED_SEED);
+          setSessions(generateSeedSessions(DEFAULT_SEED_PLAN.id));
+          setViewMode("landing");
+        }
       } finally {
-        setMounted(true);
+        if (!cancelled) {
+          setIsLoadingCurricula(false);
+          setMounted(true);
+        }
       }
-    });
+    };
+
+    void hydrate();
+    return () => { cancelled = true; };
   }, []);
 
-  // Sync to localStorage
-  useEffect(() => {
-    if (!mounted) return;
-    try {
-      localStorage.setItem(STORAGE_KEY_PLANS, JSON.stringify(savedPlans));
-    } catch { }
-  }, [savedPlans, mounted]);
-
+  // Persist only the selected curriculum ID locally; curriculum documents live in MongoDB.
   useEffect(() => {
     if (!mounted) return;
     try {
@@ -574,7 +593,7 @@ export default function Home() {
 
       const newSavedPlan: SavedPlan = {
         ...planData,
-        id: `plan_${Date.now()}`,
+        id: `draft_${Date.now()}`,
         createdAt: Date.now(),
         daily_hours: payload.daily_hours,
         experience_level: payload.experience_level,
@@ -582,24 +601,14 @@ export default function Home() {
 
       const normalized = normalizePlanToCurriculum(newSavedPlan);
 
-      // Debugging Log: Curriculum saved to localStorage
-      console.log("[CuratePlan] Curriculum saved to localStorage:", normalized.id, normalized.subject);
-
-      // Prepend the new curriculum to savedPlans and immediately persist
-      setSavedPlans((prev) => {
-        const updated = [normalized, ...prev.filter((p) => p.id !== normalized.id)];
-        try {
-          localStorage.setItem(STORAGE_KEY_PLANS, JSON.stringify(updated));
-        } catch { }
-        return updated;
-      });
-
-      // Explicitly set the newly created plan as active
+      // Generated plans remain temporary until the user explicitly clicks Save.
+      setSavedPlans((prev) => [normalized, ...prev.filter((p) => p.id !== normalized.id)]);
       setActivePlanId(normalized.id);
+      setSaveStatus("idle");
       try {
         localStorage.setItem(STORAGE_KEY_ACTIVE_ID, normalized.id);
         localStorage.setItem(STORAGE_KEY_ONBOARDING, JSON.stringify(selection));
-      } catch { }
+      } catch { /* storage is optional */ }
 
       // Reset selection view and navigate into dashboard
       setSelectedPeriodIndex(null);
@@ -662,11 +671,69 @@ export default function Home() {
     });
   };
 
-  // Update Plan modifications from CurriculumRoadmapView
+  // Update the in-memory plan. Changes are persisted only when Save is clicked.
   const handleUpdatePlan = (updatedPlan: SavedPlan) => {
     setSavedPlans((prev) =>
       prev.map((p) => (p.id === updatedPlan.id ? updatedPlan : p))
     );
+    setSaveStatus("idle");
+  };
+
+  // Manually create or update the active curriculum in MongoDB.
+  const handleSavePlan = async () => {
+    if (!activePlan) return;
+
+    setSaveStatus("saving");
+    try {
+      const isDraft = activePlan.id.startsWith("draft_");
+      const savedPlan = isDraft
+        ? await createCurriculum(activePlan)
+        : await updateCurriculum(activePlan.id, activePlan);
+
+      const normalizedSavedPlan = normalizePlanToCurriculum(savedPlan, completedTasksMap);
+
+      if (isDraft) {
+        const oldId = activePlan.id;
+        const newId = normalizedSavedPlan.id;
+
+        // Task completion keys and study-session references include the plan ID.
+        setCompletedTasksMap((prev) => {
+          const next = { ...prev };
+          Object.entries(prev).forEach(([key, value]) => {
+            if (key.startsWith(`${oldId}_`)) {
+              next[`${newId}_${key.slice(oldId.length + 1)}`] = value;
+              delete next[key];
+            }
+          });
+          return next;
+        });
+
+        setSessions((prev) => prev.map((session) =>
+          session.planId === oldId
+            ? { ...session, planId: newId, taskId: session.taskId.startsWith(`${oldId}_`) ? `${newId}_${session.taskId.slice(oldId.length + 1)}` : session.taskId }
+            : session
+        ));
+
+        setActiveTimer((prev) => prev && prev.taskId.startsWith(`${oldId}_`)
+          ? { ...prev, taskId: `${newId}_${prev.taskId.slice(oldId.length + 1)}` }
+          : prev
+        );
+
+        try { sessionStorage.removeItem("curateplan_pending_draft_v1"); } catch { /* ignore */ }
+      }
+
+      setSavedPlans((prev) => [
+        normalizedSavedPlan,
+        ...prev.filter((plan) => plan.id !== activePlan.id && plan.id !== normalizedSavedPlan.id),
+      ]);
+      setActivePlanId(normalizedSavedPlan.id);
+      try { localStorage.setItem(STORAGE_KEY_ACTIVE_ID, normalizedSavedPlan.id); } catch { /* ignore */ }
+      setSaveStatus("saved");
+      playChime("complete");
+    } catch (error) {
+      console.error("[CuratePlan] Failed to save curriculum:", error);
+      setSaveStatus("error");
+    }
   };
 
   // Export Plan to Professional PDF Document
@@ -735,13 +802,26 @@ export default function Home() {
     }
   };
 
-  // Delete plan from storage
-  const handleDeletePlan = (planId: string) => {
+  // Delete a saved MongoDB curriculum, or discard a local draft.
+  const handleDeletePlan = async (planId: string) => {
     playChime("click");
-    setSavedPlans((prev) => prev.filter((p) => p.id !== planId));
-    if (activePlanId === planId) {
-      const remaining = savedPlans.filter((p) => p.id !== planId);
-      setActivePlanId(remaining.length > 0 ? remaining[0].id : null);
+    const planToDelete = savedPlans.find((plan) => plan.id === planId);
+    if (!planToDelete) return;
+
+    try {
+      if (!planId.startsWith("draft_")) {
+        await deleteCurriculum(planId);
+      }
+
+      const remaining = savedPlans.filter((plan) => plan.id !== planId);
+      setSavedPlans(remaining);
+      if (activePlanId === planId) {
+        setActivePlanId(remaining.length > 0 ? remaining[0].id : null);
+      }
+      setSaveStatus("idle");
+    } catch (error) {
+      console.error("[CuratePlan] Failed to delete curriculum:", error);
+      setSaveStatus("error");
     }
   };
 
@@ -753,6 +833,7 @@ export default function Home() {
         p.id === planId ? { ...p, subject: newSubject.trim(), lastModifiedAt: Date.now() } : p
       )
     );
+    setSaveStatus("idle");
   };
 
   // Toggle archive status of a curriculum
@@ -762,12 +843,13 @@ export default function Home() {
         p.id === planId ? { ...p, isArchived: !p.isArchived, lastModifiedAt: Date.now() } : p
       )
     );
+    setSaveStatus("idle");
   };
 
   if (!mounted) {
     return (
       <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center text-slate-400 font-mono text-xs">
-        Initializing CuratePlan Engine...
+        {isLoadingCurricula ? "Loading your saved curricula..." : "Initializing CuratePlan Engine..."}
       </div>
     );
   }
@@ -900,6 +982,8 @@ export default function Home() {
         {/* Global Top Navbar */}
         <TopBar
           activePlan={activePlan}
+          onSave={handleSavePlan}
+          saveStatus={saveStatus}
           onOpenMobileMenu={() => setIsMobileSidebarOpen(true)}
           onOpenCreateModal={() => handleOpenCreatePlan()}
           onOpenHistoryModal={() => setIsHistoryDrawerOpen(true)}
@@ -985,8 +1069,8 @@ export default function Home() {
               {exportFeedback && (
                 <div
                   className={`p-3.5 rounded-xl border text-xs flex items-center justify-between gap-3 shadow-2xs transition animate-fade-in ${exportFeedback.type === "success"
-                      ? "bg-emerald-50 border-emerald-200 text-emerald-900"
-                      : "bg-red-50 border-red-200 text-red-900"
+                    ? "bg-emerald-50 border-emerald-200 text-emerald-900"
+                    : "bg-red-50 border-red-200 text-red-900"
                     }`}
                 >
                   <div className="flex items-center gap-2.5">
@@ -1166,10 +1250,10 @@ export default function Home() {
                   preset.timeframe === "3 Days"
                     ? 3
                     : preset.timeframe === "1 Week"
-                    ? 7
-                    : preset.timeframe === "2 Weeks"
-                    ? 14
-                    : 30;
+                      ? 7
+                      : preset.timeframe === "2 Weeks"
+                        ? 14
+                        : 30;
                 const totalEstimatedHours = Math.round(preset.daily_hours * durationDays);
                 const selection: OnboardingSelection = {
                   subject: preset.topic,

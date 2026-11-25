@@ -1,4 +1,3 @@
-
 from datetime import datetime, timezone
 from typing import Any
 
@@ -7,9 +6,7 @@ from pymongo import ReturnDocument
 
 from database.db import get_database
 
-
 COLLECTION_NAME = "curricula"
-
 
 def serialize_curriculum(document: dict[str, Any]) -> dict[str, Any]:
     """Convert MongoDB document into a JSON-friendly curriculum."""

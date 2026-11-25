@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   MapPin,
@@ -13,9 +14,30 @@ import {
   CheckCircle2,
   History,
   Info,
+  LogIn,
+  UserPlus,
 } from "lucide-react";
 import { SavedPlan, ActiveTimer } from "@/types/study";
 import { BrandLogo } from "@/components/BrandLogo";
+
+function UserProfileIcon({ className = "w-6 h-6 text-[#38bdf8]" }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="9.5" />
+      <circle cx="12" cy="9.2" r="3.2" />
+      <path d="M6.2 18.2a6.8 6.8 0 0 1 11.6 0" />
+    </svg>
+  );
+}
 
 interface AppSidebarProps {
   collapsed: boolean;
@@ -54,7 +76,28 @@ export function AppSidebar({
   activeNavTab = "dashboard",
   onSelectNavTab,
 }: AppSidebarProps) {
+  const router = useRouter();
   const [isHovered, setIsHovered] = useState(false);
+  const [isAuthPromptOpen, setIsAuthPromptOpen] = useState(false);
+  const authPromptRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        authPromptRef.current &&
+        !authPromptRef.current.contains(event.target as Node)
+      ) {
+        setIsAuthPromptOpen(false);
+      }
+    }
+    if (isAuthPromptOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isAuthPromptOpen]);
+
   const isExpanded = !collapsed || isHovered;
   // Active plan stats for the sidebar
   const activePlan = savedPlans.find((p) => p.id === activePlanId);
@@ -307,50 +350,128 @@ export function AppSidebar({
       </div>
 
       {/* Bottom User Profile & Workspace Info */}
-      <div className="p-3 border-t border-slate-200 bg-slate-50/80">
-        {isExpanded ? (
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2.5 min-w-0">
-              {/* User Avatar Circle */}
-              <div className="w-8 h-8 rounded-full bg-emerald-100 border border-emerald-200 flex items-center justify-center text-xs font-bold text-emerald-800 shrink-0">
-                AD
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-xs font-semibold text-slate-900 truncate whitespace-nowrap">Alex Developer</div>
-                <div className="text-[10px] text-slate-500 truncate whitespace-nowrap flex items-center gap-1">
-                  <span>Personal Workspace</span>
-                  {onOpenAbout && (
-                    <button
-                      type="button"
-                      onClick={onOpenAbout}
-                      className="text-slate-400 hover:text-emerald-700 transition inline-flex items-center gap-0.5 cursor-pointer ml-1"
-                      title="About CuratePlan"
-                    >
-                      <Info className="w-2.5 h-2.5" />
-                      <span>About</span>
-                    </button>
-                  )}
+      <div className="p-3 border-t border-slate-200 bg-slate-50/80 relative">
+        {/* Auth Prompt Popover */}
+        {isAuthPromptOpen && (
+          <div
+            ref={authPromptRef}
+            className={`absolute z-50 bg-white border border-slate-200 rounded-2xl shadow-xl p-4 animate-fade-in ${isExpanded
+              ? "bottom-full mb-2 left-2 right-2 w-[calc(100%-16px)]"
+              : "bottom-1 left-16 w-72"
+              }`}
+          >
+            <div className="flex items-start justify-between gap-2 pb-2.5 border-b border-slate-100">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-8 h-8 rounded-full bg-sky-50 border border-sky-100 flex items-center justify-center shrink-0">
+                  <UserProfileIcon className="w-5.5 h-5.5 text-[#38bdf8]" />
+                </div>
+                <div className="min-w-0">
+                  <h4 className="text-xs font-bold text-slate-900 leading-tight">User</h4>
+                  <p className="text-[10px] text-slate-400">Guest Session</p>
                 </div>
               </div>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsAuthPromptOpen(false);
+                }}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-md transition cursor-pointer"
+                title="Close"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
+
+            <div className="py-3 space-y-1">
+              <p className="text-xs font-semibold text-slate-800 leading-snug">
+                Sign in to save progress or create new account
+              </p>
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                Save your curricula, progress, and study sessions across devices.
+              </p>
+            </div>
+
+            <div className="space-y-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAuthPromptOpen(false);
+                  router.push("/login");
+                }}
+                className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition shadow-2xs cursor-pointer"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span>Sign in to save progress</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAuthPromptOpen(false);
+                  router.push("/signup");
+                }}
+                className="w-full py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>Create new account</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {isExpanded ? (
+          <div className="flex items-center justify-between gap-2">
             <button
               type="button"
-              onClick={onToggleCollapse}
-              title="Collapse sidebar"
-              className="hidden md:flex p-1 text-slate-400 hover:text-slate-700 rounded hover:bg-slate-200 transition cursor-pointer"
+              onClick={() => setIsAuthPromptOpen((prev) => !prev)}
+              className="flex items-center gap-2.5 min-w-0 text-left rounded-xl p-1 -m-1 hover:bg-slate-100/80 transition cursor-pointer group flex-1"
+              title="User (Click to sign in or create new account)"
             >
-              <ChevronLeft className="w-3.5 h-3.5" />
+              {/* User Profile Icon */}
+              <div className="w-8 h-8 rounded-full bg-sky-50/80 border border-sky-100 flex items-center justify-center shrink-0 group-hover:scale-105 transition">
+                <UserProfileIcon className="w-5.5 h-5.5 text-[#38bdf8]" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-semibold text-slate-900 truncate whitespace-nowrap group-hover:text-emerald-700 transition">
+                  User
+                </div>
+                <div className="text-[10px] text-slate-500 truncate whitespace-nowrap flex items-center gap-1">
+                  <span>Sign in to save</span>
+                </div>
+              </div>
             </button>
+            <div className="flex items-center gap-1">
+              {onOpenAbout && (
+                <button
+                  type="button"
+                  onClick={onOpenAbout}
+                  className="text-slate-400 hover:text-emerald-700 transition p-1 cursor-pointer"
+                  title="About CuratePlan"
+                >
+                  <Info className="w-3 h-3" />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={onToggleCollapse}
+                title="Collapse sidebar"
+                className="hidden md:flex p-1 text-slate-400 hover:text-slate-700 rounded hover:bg-slate-200 transition cursor-pointer"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         ) : (
           <div className="flex flex-col items-center gap-1">
-            <div
-              title="Alex Developer (Personal Workspace)"
-              onClick={onToggleCollapse}
-              className="w-8 h-8 rounded-full bg-emerald-100 border border-emerald-200 flex items-center justify-center text-xs font-bold text-emerald-800 shrink-0 cursor-pointer hover:ring-2 hover:ring-emerald-400 transition"
+            <button
+              type="button"
+              title="User (Click to sign in or create new account)"
+              onClick={() => setIsAuthPromptOpen((prev) => !prev)}
+              className="w-8 h-8 rounded-full bg-sky-50/80 border border-sky-100 flex items-center justify-center shrink-0 cursor-pointer hover:ring-2 hover:ring-sky-300 hover:scale-105 transition"
             >
-              AD
-            </div>
+              <UserProfileIcon className="w-5.5 h-5.5 text-[#38bdf8]" />
+            </button>
           </div>
         )}
       </div>

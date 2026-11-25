@@ -23,8 +23,8 @@ export const STORAGE_KEY_ONBOARDING = "study_planner_onboarding_v1";
 
 export const DEFAULT_USER_SETTINGS: UserSettings = {
   general: {
-    displayName: "Alex Developer",
-    avatarInitials: "AD",
+    displayName: "User",
+    avatarInitials: "U",
     defaultDashboardView: "table",
     defaultPlanId: "plan_seed_enterprise_01",
     language: "en",
