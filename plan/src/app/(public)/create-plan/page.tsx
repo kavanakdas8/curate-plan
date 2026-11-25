@@ -5,8 +5,6 @@ import { useRouter } from "next/navigation";
 import { CourseSelectionPage } from "@/components/landing/CourseSelectionPage";
 import { OnboardingSelection, StudyPlan, SavedPlan } from "@/types/study";
 import {
-  STORAGE_KEY_PLANS,
-  STORAGE_KEY_ACTIVE_ID,
   STORAGE_KEY_ONBOARDING,
   STORAGE_KEY_VIEW_MODE,
   normalizePlanToCurriculum,
@@ -52,14 +50,14 @@ export default function CreatePlanRoute() {
         const errJson = await res.json().catch(() => null);
         throw new Error(
           errJson?.detail ||
-            `Server error (${res.status}): Failed to generate curriculum. Ensure the backend is active on port 8000.`
+          `Server error (${res.status}): Failed to generate curriculum. Ensure the backend is active on port 8000.`
         );
       }
 
       const planData: StudyPlan = await res.json();
       const newSavedPlan: SavedPlan = {
         ...planData,
-        id: `plan_${Date.now()}`,
+        id: `draft_${Date.now()}`,
         createdAt: Date.now(),
         daily_hours: payload.daily_hours,
         experience_level: payload.experience_level,
@@ -68,17 +66,27 @@ export default function CreatePlanRoute() {
       const normalized = normalizePlanToCurriculum(newSavedPlan);
 
       // Persist in localStorage and sessionStorage
+      // Keep the generated curriculum as a temporary draft.
+      // It will only be saved to MongoDB when the user clicks Save.
       try {
-        const stored = localStorage.getItem(STORAGE_KEY_PLANS);
-        const plans: SavedPlan[] = stored ? JSON.parse(stored) : [];
-        const updatedPlans = [normalized, ...plans];
-        localStorage.setItem(STORAGE_KEY_PLANS, JSON.stringify(updatedPlans));
-        localStorage.setItem(STORAGE_KEY_ACTIVE_ID, normalized.id);
-        localStorage.setItem(STORAGE_KEY_ONBOARDING, JSON.stringify(selection));
-        localStorage.setItem("study_planner_active_nav_tab_v1", "dashboard");
+        sessionStorage.setItem(
+          "curateplan_pending_draft_v1",
+          JSON.stringify(normalized)
+        );
+
+        localStorage.setItem(
+          STORAGE_KEY_ONBOARDING,
+          JSON.stringify(selection)
+        );
+
+        localStorage.setItem(
+          "study_planner_active_nav_tab_v1",
+          "dashboard"
+        );
+
         sessionStorage.setItem(STORAGE_KEY_VIEW_MODE, "dashboard");
       } catch (storageErr) {
-        console.error("Storage error:", storageErr);
+        console.error("Draft storage error:", storageErr);
       }
 
       playChime("complete");

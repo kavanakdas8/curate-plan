@@ -9,6 +9,9 @@ import {
   Bell,
   ChevronRight,
   Info,
+  Save,
+  Check,
+  Loader2,
 } from "lucide-react";
 import { SavedPlan } from "@/types/study";
 
@@ -25,6 +28,8 @@ interface TopBarProps {
   searchQuery?: string;
   onSearchChange?: (q: string) => void;
   onOpenAbout?: () => void;
+  onSave?: () => void;
+  saveStatus?: "idle" | "saving" | "saved" | "error";
 }
 
 export function TopBar({
@@ -36,6 +41,8 @@ export function TopBar({
   searchQuery = "",
   onSearchChange,
   onOpenAbout,
+  onSave,
+  saveStatus = "idle",
 }: TopBarProps) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -109,6 +116,42 @@ export function TopBar({
 
       {/* Right Actions: Notification Bell + Secondary Menu */}
       <div className="flex items-center gap-2 shrink-0">
+        {/* Manual Save Button */}
+        {activePlan && onSave && (
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={saveStatus === "saving"}
+            className={`px-3 py-2 rounded-lg border text-xs font-semibold flex items-center gap-2 transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${saveStatus === "saved"
+                ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                : saveStatus === "error"
+                  ? "bg-red-50 border-red-200 text-red-700"
+                  : "bg-emerald-600 border-emerald-600 text-white hover:bg-emerald-700"
+              }`}
+          >
+            {saveStatus === "saving" ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Saving...
+              </>
+            ) : saveStatus === "saved" ? (
+              <>
+                <Check className="w-3.5 h-3.5" />
+                Saved
+              </>
+            ) : saveStatus === "error" ? (
+              <>
+                <Save className="w-3.5 h-3.5" />
+                Retry Save
+              </>
+            ) : (
+              <>
+                <Save className="w-3.5 h-3.5" />
+                Save
+              </>
+            )}
+          </button>
+        )}
         {/* Notification Bell */}
         <div className="relative" ref={notifRef}>
           <button
