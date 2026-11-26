@@ -17,6 +17,7 @@ import { CourseSelectionPage } from "@/components/landing/CourseSelectionPage";
 import { LoginPage } from "@/components/auth/LoginPage";
 import { SignupPage } from "@/components/auth/SignupPage";
 import { exportPlanToMarkdown, downloadFile, generateICS, playChime } from "@/lib/utils";
+import { TutorPanel } from "@/components/TutorPanel";
 import { exportCurriculumToPDF } from "@/lib/pdfGenerator";
 import {
   fetchCurricula,
@@ -25,6 +26,7 @@ import {
   deleteCurriculum,
 } from "@/lib/curriculumApi";
 import {
+  STORAGE_KEY_PLANS,
   STORAGE_KEY_ACTIVE_ID,
   STORAGE_KEY_PROGRESS,
   STORAGE_KEY_SIDEBAR_COLLAPSED,
@@ -35,7 +37,6 @@ import {
   STORAGE_KEY_ONBOARDING,
   DEFAULT_USER_SETTINGS,
   normalizePlanToCurriculum,
-  generateSeedSessions,
 } from "@/lib/curriculumAdapter";
 import {
   Clock,
@@ -44,140 +45,27 @@ import {
   CheckCircle2,
   AlertTriangle,
   X,
+  Plus,
+  ArrowRight,
+  BookOpen,
 } from "lucide-react";
-
-const DEFAULT_SEED_PLAN: SavedPlan = {
-  id: "draft_seed_enterprise_01",
-  subject: "Full-Stack Distributed Systems Architecture",
-  target_timeframe: "2 Weeks",
-  daily_hours: 2.5,
-  experience_level: "Advanced",
-  createdAt: Date.now() - 86400000 * 2,
-  overview:
-    "An enterprise curriculum covering consensus protocols, RPC transport pipelines, distributed state replication, and production observability.",
-  schedule: [
-    {
-      period_label: "Foundations & Protocol Buffers",
-      topic_summary: "Core concurrency models and binary serialization protocols",
-      tasks: [
-        {
-          title: "Implement gRPC schema and binary serializer",
-          duration_minutes: 45,
-          description:
-            "Define Protobuf IDL contracts for distributed RPC calls. Implement client stubs and test network latency.",
-          resource_type: "Exercise",
-        },
-        {
-          title: "Review Raft protocol paper and state machine safety",
-          duration_minutes: 30,
-          description:
-            "Deep-dive into Ongaro & Ousterhout Raft paper sections 5.1-5.4 focusing on leader election invariants.",
-          resource_type: "Documentation",
-        },
-        {
-          title: "Setup concurrent worker thread pool",
-          duration_minutes: 40,
-          description:
-            "Construct non-blocking worker queue with backpressure signaling and mutex-free ring buffers.",
-          resource_type: "Exercise",
-        },
-      ],
-    },
-    {
-      period_label: "Deep Dive: Consensus & Replication",
-      topic_summary: "Leader election, heartbeat timers, and log quorum replication",
-      tasks: [
-        {
-          title: "Build distributed leader election heartbeat loop",
-          duration_minutes: 50,
-          description:
-            "Implement randomized election timeout clocks and handle split-brain vote partition edge cases.",
-          resource_type: "Exercise",
-        },
-        {
-          title: "Examine consensus failure modes in Jepsen tests",
-          duration_minutes: 35,
-          description:
-            "Analyze Jepsen network partition logs and verify linearizability guarantees during split brain.",
-          resource_type: "Reading",
-        },
-        {
-          title: "Implement append entries RPC with rollback verification",
-          duration_minutes: 45,
-          description:
-            "Construct log entry verification and term matching logic between leader and follower nodes.",
-          resource_type: "Exercise",
-        },
-      ],
-    },
-    {
-      period_label: "Project Implementation: Storage Engine",
-      topic_summary: "LSM tree compaction, Write-Ahead Logs, and MemTable flushing",
-      tasks: [
-        {
-          title: "Design Write-Ahead Log (WAL) disk persistence",
-          duration_minutes: 60,
-          description:
-            "Implement sequential append-only WAL with CRC32 checksum validation and crash-recovery replay.",
-          resource_type: "Exercise",
-        },
-        {
-          title: "Watch storage engine architecture teardown",
-          duration_minutes: 30,
-          description:
-            "Lecture on LevelDB and RocksDB SSTable bloom filters and multi-level compaction strategies.",
-          resource_type: "Video",
-        },
-        {
-          title: "Build concurrent skiplist MemTable with lock-free reads",
-          duration_minutes: 45,
-          description:
-            "Implement memory table backed by skiplist data structure with concurrent read/write isolation.",
-          resource_type: "Exercise",
-        },
-      ],
-    },
-    {
-      period_label: "Review & Production Polish",
-      topic_summary: "Distributed tracing, chaos testing, and benchmark suites",
-      tasks: [
-        {
-          title: "Instrument OpenTelemetry spans across RPC boundaries",
-          duration_minutes: 40,
-          description:
-            "Add trace propagation headers and measure p99 tail latency across multi-node cluster.",
-          resource_type: "Exercise",
-        },
-        {
-          title: "Run Chaos Mesh network partition simulations",
-          duration_minutes: 45,
-          description:
-            "Inject 100ms jitter and 20% packet drop into follower communication to verify quorum stability.",
-          resource_type: "Exercise",
-        },
-        {
-          title: "Conduct architectural sprint retrospective & synthesis",
-          duration_minutes: 30,
-          description:
-            "Consolidate benchmark performance metrics and review edge-case recovery logs.",
-          resource_type: "Reading",
-        },
-      ],
-    },
-  ],
-};
-
-const DEFAULT_COMPLETED_SEED: Record<string, boolean> = {
-  "draft_seed_enterprise_01_0_0": true,
-  "draft_seed_enterprise_01_0_1": true,
-  "draft_seed_enterprise_01_0_2": true,
-  "draft_seed_enterprise_01_1_0": true,
-};
 
 export default function Home() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
 
+  const handleAuthSuccess = () => {
+    console.log("AUTH SUCCESS CALLBACK TRIGGERED");
+
+    setActiveNavTab("dashboard");
+    setViewMode("dashboard");
+
+    try {
+      sessionStorage.setItem(STORAGE_KEY_VIEW_MODE, "dashboard");
+    } catch { }
+
+    router.replace("/?view=dashboard");
+  };
   // App Shell Navigation State: default to collapsed (only logos shown on open)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -186,7 +74,6 @@ export default function Home() {
   // Core Data State
   const [savedPlans, setSavedPlans] = useState<SavedPlan[]>([]);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
-  const [isLoadingCurricula, setIsLoadingCurricula] = useState(true);
   const [activePlanId, setActivePlanId] = useState<string | null>(null);
   const [completedTasksMap, setCompletedTasksMap] = useState<Record<string, boolean>>({});
   const [sessions, setSessions] = useState<StudySession[]>([]);
@@ -220,7 +107,7 @@ export default function Home() {
 
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Load saved curricula from MongoDB and restore temporary drafts from this session.
+  // Load saved curricula from MongoDB & local storage, and restore temporary drafts from this session.
   // Other lightweight UI preferences and progress remain in browser storage.
   useEffect(() => {
     let cancelled = false;
@@ -244,29 +131,57 @@ export default function Home() {
         let pendingDraft: SavedPlan | null = null;
         if (pendingDraftRaw) {
           try {
-            pendingDraft = normalizePlanToCurriculum(JSON.parse(pendingDraftRaw) as SavedPlan);
+            const parsedDraft = JSON.parse(pendingDraftRaw) as SavedPlan;
+            if (parsedDraft && !parsedDraft.id.startsWith("plan_seed_")) {
+              pendingDraft = normalizePlanToCurriculum(parsedDraft);
+            }
           } catch (error) {
             console.warn("Could not restore the pending curriculum draft:", error);
             sessionStorage.removeItem("curateplan_pending_draft_v1");
           }
         }
 
-        const remotePlans = await fetchCurricula();
+        let localPlans: SavedPlan[] = [];
+        const storedPlans = localStorage.getItem(STORAGE_KEY_PLANS);
+        if (storedPlans) {
+          try {
+            const parsed = JSON.parse(storedPlans) as SavedPlan[];
+            if (Array.isArray(parsed)) {
+              localPlans = parsed
+                .filter((p) => p && !p.id.startsWith("plan_seed_"))
+                .map((p) => normalizePlanToCurriculum(p));
+            }
+          } catch (e) {
+            console.warn("Could not parse local plans:", e);
+          }
+        }
+
+        let remotePlans: SavedPlan[] = [];
+        try {
+          const fetched = await fetchCurricula();
+          remotePlans = (fetched || [])
+            .filter((p) => p && !p.id.startsWith("plan_seed_"))
+            .map((p) => normalizePlanToCurriculum(p));
+        } catch (fetchErr) {
+          console.warn("[CuratePlan] Backend fetchCurricula failed, using local plans:", fetchErr);
+        }
+
         if (cancelled) return;
 
-        let plans = remotePlans.map((plan) => normalizePlanToCurriculum(plan));
+        // Merge: local plans + remote plans (remote overrides matching ID) + pendingDraft
+        const planMap = new Map<string, SavedPlan>();
+        localPlans.forEach((p) => planMap.set(p.id, p));
+        remotePlans.forEach((p) => planMap.set(p.id, p));
         if (pendingDraft) {
-          plans = [pendingDraft, ...plans.filter((plan) => plan.id !== pendingDraft!.id)];
+          planMap.set(pendingDraft.id, pendingDraft);
         }
 
-        let progress: Record<string, boolean> = storedProgress ? JSON.parse(storedProgress) : {};
-
-        // Keep the existing demo experience, but make it an unsaved draft.
-        if (plans.length === 0) {
-          const seed = normalizePlanToCurriculum(DEFAULT_SEED_PLAN, DEFAULT_COMPLETED_SEED);
-          plans = [seed];
-          progress = { ...DEFAULT_COMPLETED_SEED, ...progress };
+        let plans = Array.from(planMap.values());
+        if (pendingDraft) {
+          plans = [pendingDraft, ...plans.filter((p) => p.id !== pendingDraft!.id)];
         }
+
+        const progress: Record<string, boolean> = storedProgress ? JSON.parse(storedProgress) : {};
 
         setSavedPlans(plans);
         setCompletedTasksMap(progress);
@@ -282,9 +197,13 @@ export default function Home() {
         }
 
         if (storedSessions) {
-          setSessions(JSON.parse(storedSessions));
+          try {
+            setSessions(JSON.parse(storedSessions));
+          } catch {
+            setSessions([]);
+          }
         } else {
-          setSessions(generateSeedSessions(DEFAULT_SEED_PLAN.id));
+          setSessions([]);
         }
 
         if (storedSettings) setUserSettings(JSON.parse(storedSettings));
@@ -316,18 +235,15 @@ export default function Home() {
           setActiveTimer({ ...parsedTimer, isRunning: false });
         }
       } catch (error) {
-        console.error("[CuratePlan] Failed to load curricula from the backend:", error);
+        console.error("[CuratePlan] Failed to initialize curricula:", error);
         if (!cancelled) {
-          const seed = normalizePlanToCurriculum(DEFAULT_SEED_PLAN, DEFAULT_COMPLETED_SEED);
-          setSavedPlans([seed]);
-          setActivePlanId(seed.id);
-          setCompletedTasksMap(DEFAULT_COMPLETED_SEED);
-          setSessions(generateSeedSessions(DEFAULT_SEED_PLAN.id));
+          setSavedPlans([]);
+          setActivePlanId(null);
+          setSessions([]);
           setViewMode("landing");
         }
       } finally {
         if (!cancelled) {
-          setIsLoadingCurricula(false);
           setMounted(true);
         }
       }
@@ -336,6 +252,15 @@ export default function Home() {
     void hydrate();
     return () => { cancelled = true; };
   }, []);
+
+  // Sync saved plans to localStorage so guest / offline plans persist
+  useEffect(() => {
+    if (!mounted) return;
+    try {
+      const cleanPlans = savedPlans.filter((p) => !p.id.startsWith("plan_seed_"));
+      localStorage.setItem(STORAGE_KEY_PLANS, JSON.stringify(cleanPlans));
+    } catch { }
+  }, [savedPlans, mounted]);
 
   // Persist only the selected curriculum ID locally; curriculum documents live in MongoDB.
   useEffect(() => {
@@ -524,6 +449,14 @@ export default function Home() {
 
     return { totalCount: total, completedCount: completed, totalMinutes: minutes };
   }, [activePlan, completedTasksMap]);
+
+  const totalAllCompletedTasks = useMemo(() => {
+    return Object.values(completedTasksMap).filter(Boolean).length;
+  }, [completedTasksMap]);
+
+  const totalStudyMinutes = useMemo(() => {
+    return sessions.reduce((acc, s) => acc + (s.durationMinutes || 0), 0);
+  }, [sessions]);
 
   // Next pending tasks for today's schedule and upcoming section
   const pendingTasksList = useMemo(() => {
@@ -849,7 +782,6 @@ export default function Home() {
   if (!mounted) {
     return (
       <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center text-slate-400 font-mono text-xs">
-        {isLoadingCurricula ? "Loading your saved curricula..." : "Initializing CuratePlan Engine..."}
       </div>
     );
   }
@@ -896,7 +828,6 @@ export default function Home() {
     );
   }
 
-  // 2. UI-Only Login Page
   if (viewMode === "login") {
     return (
       <LoginPage
@@ -913,11 +844,11 @@ export default function Home() {
           setViewMode("landing");
         }}
         onNavigateSignup={() => router.push("/signup")}
+        onAuthSuccess={handleAuthSuccess}
       />
     );
   }
 
-  // 3. UI-Only Sign Up Page
   if (viewMode === "signup") {
     return (
       <SignupPage
@@ -934,6 +865,7 @@ export default function Home() {
           setViewMode("landing");
         }}
         onNavigateLogin={() => router.push("/login")}
+        onAuthSuccess={handleAuthSuccess}
       />
     );
   }
@@ -1029,247 +961,377 @@ export default function Home() {
                 }
               }}
             />
-          ) : activePlan ? (
-            /* DEFAULT: DASHBOARD VIEW */
+          ) : (
             /* DEFAULT: DASHBOARD VIEW */
             <div className="space-y-6">
-              {/* Onboarding Context Banner (if user transitioned from onboarding) */}
-              {onboardingSelection && (
-                <div className="p-3.5 rounded-xl bg-emerald-50/90 border border-emerald-200 text-xs text-emerald-950 flex flex-wrap items-center justify-between gap-3 shadow-2xs animate-fade-in">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-bold text-emerald-800">Selected Goal:</span>
-                    <span className="font-semibold">{onboardingSelection.subject}</span>
-                    <span className="text-emerald-300">•</span>
-                    <span>{onboardingSelection.dailyLabel} / day</span>
-                    <span className="text-emerald-300">•</span>
-                    <span>{onboardingSelection.durationLabel}</span>
-                    {onboardingSelection.level && (
-                      <>
-                        <span className="text-emerald-300">•</span>
-                        <span>{onboardingSelection.level}</span>
-                      </>
-                    )}
-                    <span className="text-emerald-300">•</span>
-                    <span className="font-mono text-emerald-700 font-semibold">
-                      {onboardingSelection.totalEstimatedHours}h total
-                    </span>
+              {savedPlans.length === 0 ? (
+                /* SECTION 1: Empty State */
+                <EmptyStateHero
+                  onOpenModal={() => handleOpenCreatePlan()}
+                  onOpenAbout={() => setIsAboutModalOpen(true)}
+                />
+              ) : (
+                /* SECTION 2: When Courses Exist */
+                <>
+                  {/* Quick Stats Summary */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+                    <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600">
+                        <BookOpen className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="text-xs text-slate-500 font-medium">Active Plans</div>
+                        <div className="text-lg font-bold text-slate-900">{savedPlans.filter((p) => !p.isArchived).length}</div>
+                      </div>
+                    </div>
+
+                    <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600">
+                        <CheckCircle2 className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="text-xs text-slate-500 font-medium">Tasks Completed</div>
+                        <div className="text-lg font-bold text-slate-900">{totalAllCompletedTasks}</div>
+                      </div>
+                    </div>
+
+                    <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600">
+                        <Clock className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="text-xs text-slate-500 font-medium">Total Study Time</div>
+                        <div className="text-lg font-bold text-slate-900">
+                          {totalStudyMinutes >= 60 ? `${(totalStudyMinutes / 60).toFixed(1)} hrs` : `${totalStudyMinutes} mins`}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setOnboardingSelection(null)}
-                    className="text-emerald-600 hover:text-emerald-900 p-1 cursor-pointer"
-                    title="Dismiss summary"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              )}
 
-              {/* PDF Export Feedback Alert */}
-              {exportFeedback && (
-                <div
-                  className={`p-3.5 rounded-xl border text-xs flex items-center justify-between gap-3 shadow-2xs transition animate-fade-in ${exportFeedback.type === "success"
-                    ? "bg-emerald-50 border-emerald-200 text-emerald-900"
-                    : "bg-red-50 border-red-200 text-red-900"
-                    }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    {exportFeedback.type === "success" ? (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    ) : (
-                      <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
-                    )}
-                    <span className="font-medium">{exportFeedback.message}</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setExportFeedback(null)}
-                    className="text-slate-400 hover:text-slate-700 cursor-pointer p-1"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              )}
-
-              {/* Header KPI & Metric Cards */}
-              <HeaderKPI
-                plan={activePlan}
-                completedCount={completedCount}
-                totalCount={totalCount}
-                totalMinutes={totalMinutes}
-                onExportPDF={handleExportPDF}
-                isExportingPDF={isExportingPDF}
-                onExportMarkdown={handleExportMarkdown}
-                selectedPeriodLabel={
-                  selectedPeriodIndex !== null
-                    ? activePlan.schedule[selectedPeriodIndex]?.period_label
-                    : "All Periods"
-                }
-                onSelectPeriodLabel={(label) => {
-                  if (label === "All Periods") {
-                    setSelectedPeriodIndex(null);
-                  } else {
-                    const idx = activePlan.schedule.findIndex((p) => p.period_label === label);
-                    if (idx !== -1) setSelectedPeriodIndex(idx);
-                  }
-                }}
-              />
-
-              {/* Today's Focus Schedule */}
-              <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-2xs space-y-4">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-sm font-bold text-slate-900 tracking-tight">
-                    Today&apos;s Focus Schedule
-                  </h2>
-                </div>
-
-                {todayPriorityTask ? (
-                  <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="space-y-1 min-w-0">
-                        <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-700 block">
-                          Next In Queue • {todayPriorityTask.periodLabel}
-                        </span>
-                        <h3 className="text-sm font-bold text-slate-900 leading-snug">
-                          {todayPriorityTask.task.title}
-                        </h3>
-                        <p className="text-xs text-slate-600 leading-relaxed line-clamp-2">
-                          {todayPriorityTask.task.description}
-                        </p>
+                  {/* Your Learning Plans Grid */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-base font-bold text-slate-900 tracking-tight">Your Learning Plans</h2>
+                        <p className="text-xs text-slate-500">Pick up where you left off or switch between your curricula.</p>
                       </div>
                       <button
                         type="button"
-                        onClick={() =>
-                          handleStartFocus(
-                            todayPriorityTask.task,
-                            todayPriorityTask.taskId,
-                            todayPriorityTask.periodLabel
-                          )
-                        }
-                        className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs shrink-0"
+                        onClick={() => handleOpenCreatePlan()}
+                        className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 cursor-pointer"
                       >
-                        <Play className="w-3 h-3 fill-current" />
-                        <span>Start Focus</span>
+                        <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                        <span>New Plan</span>
                       </button>
                     </div>
 
-                    <div className="flex items-center gap-2 pt-2 border-t border-slate-100 text-xs text-slate-600">
-                      <span className="inline-flex items-center gap-1 font-mono text-[11px]">
-                        <Clock className="w-3.5 h-3.5 text-emerald-600" />
-                        {todayPriorityTask.task.duration_minutes} minutes
-                      </span>
-                      <span>•</span>
-                      <span className="text-[11px] font-medium">
-                        {todayPriorityTask.task.resource_type}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleToggleTask(todayPriorityTask.taskId)}
-                        className="ml-auto text-xs text-emerald-700 hover:text-emerald-900 font-semibold flex items-center gap-1 cursor-pointer"
-                      >
-                        <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-                        <span>Mark Done</span>
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-6 text-center rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-500">
-                    All scheduled tasks for this curriculum are complete!
-                  </div>
-                )}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {savedPlans.map((plan) => {
+                        const isActive = plan.id === activePlanId;
+                        let planTotalTasks = 0;
+                        let planCompletedTasks = 0;
+                        plan.schedule?.forEach((period, pIdx) => {
+                          period.tasks?.forEach((_, tIdx) => {
+                            planTotalTasks++;
+                            if (completedTasksMap[`${plan.id}_${pIdx}_${tIdx}`]) {
+                              planCompletedTasks++;
+                            }
+                          });
+                        });
+                        const pct = planTotalTasks > 0 ? Math.round((planCompletedTasks / planTotalTasks) * 100) : 0;
+                        const moduleCount = plan.modules?.length || plan.schedule?.length || 0;
+                        const dateStr = plan.createdAt ? new Date(plan.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "Recently";
 
-                {/* Upcoming Tasks Section */}
-                {upcomingTasksSlice.length > 0 && (
-                  <div className="space-y-2 pt-1">
-                    <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
-                      <span>Upcoming In Roadmap</span>
-                      <span className="text-[11px] text-slate-400 font-normal">
-                        {pendingTasksList.length} total pending
-                      </span>
-                    </div>
+                        return (
+                          <div
+                            key={plan.id}
+                            className={`bg-white border rounded-xl p-5 shadow-2xs flex flex-col justify-between transition relative ${isActive ? "border-emerald-500 ring-2 ring-emerald-500/20" : "border-slate-200 hover:border-slate-300"
+                              }`}
+                          >
+                            <div className="space-y-2.5">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-[10px] font-mono font-semibold uppercase tracking-wider text-slate-400">
+                                  {plan.target_timeframe || "Self-Paced"} • {moduleCount} {moduleCount === 1 ? "Module" : "Modules"}
+                                </span>
+                                {isActive && (
+                                  <span className="px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold text-[10px]">
+                                    Active
+                                  </span>
+                                )}
+                              </div>
+                              <h3 className="text-sm font-bold text-slate-900 line-clamp-1">
+                                {plan.subject}
+                              </h3>
+                              <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
+                                {plan.overview || `Structured curriculum for mastering ${plan.subject}.`}
+                              </p>
+                            </div>
 
-                    <div className="space-y-1.5">
-                      {upcomingTasksSlice.map((item) => (
-                        <div
-                          key={item.taskId}
-                          className="p-2.5 rounded-lg bg-slate-50 hover:bg-slate-100/70 border border-slate-200 flex items-center justify-between gap-3 text-xs transition"
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <button
-                              type="button"
-                              onClick={() => handleToggleTask(item.taskId)}
-                              className="w-4 h-4 rounded border border-slate-300 hover:border-emerald-500 bg-white flex items-center justify-center transition cursor-pointer shrink-0"
-                            >
-                              <span className="sr-only">Complete task</span>
-                            </button>
-                            <div className="min-w-0">
-                              <span className="font-semibold text-slate-900 truncate block">
-                                {item.task.title}
-                              </span>
-                              <span className="text-[10px] text-slate-400 truncate block">
-                                {item.periodLabel}
-                              </span>
+                            <div className="pt-4 mt-3 border-t border-slate-100 space-y-3">
+                              <div className="space-y-1">
+                                <div className="flex items-center justify-between text-[11px] text-slate-500">
+                                  <span>{planCompletedTasks} of {planTotalTasks} tasks done</span>
+                                  <span className="font-semibold text-slate-700">{pct}%</span>
+                                </div>
+                                <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full bg-emerald-500 rounded-full transition-all duration-300"
+                                    style={{ width: `${pct}%` }}
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="flex items-center justify-between pt-1">
+                                <span className="text-[10px] text-slate-400">Created {dateStr}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActivePlanId(plan.id);
+                                    setSelectedPeriodIndex(null);
+                                    setActiveNavTab("curriculum");
+                                  }}
+                                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+                                >
+                                  <span>Continue Learning</span>
+                                  <ArrowRight className="w-3 h-3" />
+                                </button>
+                              </div>
                             </div>
                           </div>
-
-                          <div className="flex items-center gap-2 shrink-0">
-                            <span className="font-mono text-[10px] text-slate-500 bg-white border border-slate-200 px-1.5 py-0.5 rounded">
-                              {item.task.duration_minutes}m
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleStartFocus(
-                                  item.task,
-                                  item.taskId,
-                                  item.periodLabel
-                                )
-                              }
-                              className="p-1 text-slate-400 hover:text-emerald-700 rounded transition cursor-pointer"
-                              title="Start focus"
-                            >
-                              <Play className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
-                )}
-              </div>
+
+                  {/* Active Plan Workspace (Today's Focus & KPI) */}
+                  {activePlan && (
+                    <div className="space-y-6 pt-4 border-t border-slate-200/80">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h2 className="text-base font-bold text-slate-900 tracking-tight">Active Curriculum Workspace</h2>
+                          <p className="text-xs text-slate-500">
+                            Focused workspace for <span className="font-semibold text-slate-700">{activePlan.subject}</span>
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setActiveNavTab("curriculum")}
+                          className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 cursor-pointer"
+                        >
+                          <span>View Full Roadmap</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      {/* Onboarding Context Banner (if user transitioned from onboarding) */}
+                      {onboardingSelection && (
+                        <div className="p-3.5 rounded-xl bg-emerald-50/90 border border-emerald-200 text-xs text-emerald-950 flex flex-wrap items-center justify-between gap-3 shadow-2xs animate-fade-in">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-bold text-emerald-800">Selected Goal:</span>
+                            <span className="font-semibold">{onboardingSelection.subject}</span>
+                            <span className="text-emerald-300">•</span>
+                            <span>{onboardingSelection.dailyLabel} / day</span>
+                            <span className="text-emerald-300">•</span>
+                            <span>{onboardingSelection.durationLabel}</span>
+                            {onboardingSelection.level && (
+                              <>
+                                <span className="text-emerald-300">•</span>
+                                <span>{onboardingSelection.level}</span>
+                              </>
+                            )}
+                            <span className="text-emerald-300">•</span>
+                            <span className="font-mono text-emerald-700 font-semibold">
+                              {onboardingSelection.totalEstimatedHours}h total
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setOnboardingSelection(null)}
+                            className="text-emerald-600 hover:text-emerald-900 p-1 cursor-pointer"
+                            title="Dismiss summary"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
+
+                      {/* PDF Export Feedback Alert */}
+                      {exportFeedback && (
+                        <div
+                          className={`p-3.5 rounded-xl border text-xs flex items-center justify-between gap-3 shadow-2xs transition animate-fade-in ${exportFeedback.type === "success"
+                            ? "bg-emerald-50 border-emerald-200 text-emerald-900"
+                            : "bg-red-50 border-red-200 text-red-900"
+                            }`}
+                        >
+                          <div className="flex items-center gap-2.5">
+                            {exportFeedback.type === "success" ? (
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                            ) : (
+                              <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                            )}
+                            <span className="font-medium">{exportFeedback.message}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setExportFeedback(null)}
+                            className="text-slate-400 hover:text-slate-700 cursor-pointer p-1"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Header KPI & Metric Cards */}
+                      <HeaderKPI
+                        plan={activePlan}
+                        completedCount={completedCount}
+                        totalCount={totalCount}
+                        totalMinutes={totalMinutes}
+                        onExportPDF={handleExportPDF}
+                        isExportingPDF={isExportingPDF}
+                        onExportMarkdown={handleExportMarkdown}
+                        selectedPeriodLabel={
+                          selectedPeriodIndex !== null
+                            ? activePlan.schedule[selectedPeriodIndex]?.period_label
+                            : "All Periods"
+                        }
+                        onSelectPeriodLabel={(label) => {
+                          if (label === "All Periods") {
+                            setSelectedPeriodIndex(null);
+                          } else {
+                            const idx = activePlan.schedule.findIndex((p) => p.period_label === label);
+                            if (idx !== -1) setSelectedPeriodIndex(idx);
+                          }
+                        }}
+                      />
+
+                      {/* Today's Focus Schedule */}
+                      <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-2xs space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h2 className="text-sm font-bold text-slate-900 tracking-tight">
+                            Today&apos;s Focus Schedule
+                          </h2>
+                        </div>
+
+                        {todayPriorityTask ? (
+                          <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="space-y-1 min-w-0">
+                                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-700 block">
+                                  Next In Queue • {todayPriorityTask.periodLabel}
+                                </span>
+                                <h3 className="text-sm font-bold text-slate-900 leading-snug">
+                                  {todayPriorityTask.task.title}
+                                </h3>
+                                <p className="text-xs text-slate-600 leading-relaxed line-clamp-2">
+                                  {todayPriorityTask.task.description}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleStartFocus(
+                                    todayPriorityTask.task,
+                                    todayPriorityTask.taskId,
+                                    todayPriorityTask.periodLabel
+                                  )
+                                }
+                                className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs shrink-0"
+                              >
+                                <Play className="w-3 h-3 fill-current" />
+                                <span>Start Focus</span>
+                              </button>
+                            </div>
+
+                            <div className="flex items-center gap-2 pt-2 border-t border-slate-100 text-xs text-slate-600">
+                              <span className="inline-flex items-center gap-1 font-mono text-[11px]">
+                                <Clock className="w-3.5 h-3.5 text-emerald-600" />
+                                {todayPriorityTask.task.duration_minutes} minutes
+                              </span>
+                              <span>•</span>
+                              <span className="text-[11px] font-medium">
+                                {todayPriorityTask.task.resource_type}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleTask(todayPriorityTask.taskId)}
+                                className="ml-auto text-xs text-emerald-700 hover:text-emerald-900 font-semibold flex items-center gap-1 cursor-pointer"
+                              >
+                                <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                                <span>Mark Done</span>
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="p-6 text-center rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-500">
+                            All scheduled tasks for this curriculum are complete!
+                          </div>
+                        )}
+
+                        {/* Upcoming Tasks Section */}
+                        {upcomingTasksSlice.length > 0 && (
+                          <div className="space-y-2 pt-1">
+                            <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
+                              <span>Upcoming In Roadmap</span>
+                              <span className="text-[11px] text-slate-400 font-normal">
+                                {pendingTasksList.length} total pending
+                              </span>
+                            </div>
+
+                            <div className="space-y-1.5">
+                              {upcomingTasksSlice.map((item) => (
+                                <div
+                                  key={item.taskId}
+                                  className="p-2.5 rounded-lg bg-slate-50 hover:bg-slate-100/70 border border-slate-200 flex items-center justify-between gap-3 text-xs transition"
+                                >
+                                  <div className="flex items-center gap-2.5 min-w-0">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleToggleTask(item.taskId)}
+                                      className="w-4 h-4 rounded border border-slate-300 hover:border-emerald-500 bg-white flex items-center justify-center transition cursor-pointer shrink-0"
+                                    >
+                                      <span className="sr-only">Complete task</span>
+                                    </button>
+                                    <div className="min-w-0">
+                                      <span className="font-semibold text-slate-900 truncate block">
+                                        {item.task.title}
+                                      </span>
+                                      <span className="text-[10px] text-slate-400 truncate block">
+                                        {item.periodLabel}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    <span className="font-mono text-[10px] text-slate-500 bg-white border border-slate-200 px-1.5 py-0.5 rounded">
+                                      {item.task.duration_minutes}m
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleStartFocus(
+                                          item.task,
+                                          item.taskId,
+                                          item.periodLabel
+                                        )
+                                      }
+                                      className="p-1 text-slate-400 hover:text-emerald-700 rounded transition cursor-pointer"
+                                      title="Start focus"
+                                    >
+                                      <Play className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
-          ) : (
-            /* Empty State Hero */
-            <EmptyStateHero
-              onOpenModal={() => handleOpenCreatePlan()}
-              onGeneratePreset={(preset) => {
-                const hours = preset.daily_hours;
-                const dailyLabel =
-                  hours === 0.5 ? "30 min" : hours === 1 ? "1 hour" : `${hours} hours`;
-                const durationDays =
-                  preset.timeframe === "3 Days"
-                    ? 3
-                    : preset.timeframe === "1 Week"
-                      ? 7
-                      : preset.timeframe === "2 Weeks"
-                        ? 14
-                        : 30;
-                const totalEstimatedHours = Math.round(preset.daily_hours * durationDays);
-                const selection: OnboardingSelection = {
-                  subject: preset.topic,
-                  dailyMinutes: Math.round(preset.daily_hours * 60),
-                  dailyLabel,
-                  durationDays,
-                  durationLabel: preset.timeframe,
-                  level:
-                    (preset.experience_level as "Beginner" | "Intermediate" | "Advanced") ||
-                    "Intermediate",
-                  totalEstimatedHours,
-                  selectedAt: Date.now(),
-                };
-                handleOpenCreatePlan(selection);
-              }}
-            />
           )}
         </main>
       </div>
@@ -1283,7 +1345,16 @@ export default function Home() {
         }}
         onClose={() => setActiveTimer(null)}
       />
-
+      {/* AI Tutor - Groq-powered study assistant */}
+      {viewMode === "dashboard" && (
+        <TutorPanel
+          currentPlan={
+            activePlan
+              ? (activePlan as unknown as Record<string, unknown>)
+              : null
+          }
+        />
+      )}
       {/* Slide-out Plan History Drawer */}
       <PlanHistorySidebar
         isOpen={isHistoryDrawerOpen}

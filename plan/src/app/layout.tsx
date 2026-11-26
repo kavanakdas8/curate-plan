@@ -1,5 +1,7 @@
+
 import type { Metadata } from "next";
 import "./globals.css";
+import { AuthProvider } from "@/components/auth/AuthProvider";
 
 export const metadata: Metadata = {
   title: "CuratePlan – Plan Smarter. Learn Better.",
@@ -16,7 +18,11 @@ export default function RootLayout({
     <html lang="en" className="h-full light antialiased">
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin="anonymous"
+        />
         {/* eslint-disable-next-line @next/next/no-page-custom-font */}
         <link
           rel="stylesheet"
@@ -24,7 +30,7 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-full bg-[#f8fafc] text-[#0f172a] flex flex-col selection:bg-emerald-100 selection:text-emerald-900">
-        {children}
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );

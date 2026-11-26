@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 from agent import (
     generate_plan,
     handle_chat_turn,
+    answer_study_question,
     StudyPlan,
     ChatMessage,
 )
@@ -106,6 +107,17 @@ class ChatResponse(BaseModel):
     change_summary: Optional[str] = None
     updated_plan: Optional[StudyPlan] = None
 
+
+class AssistantChatRequest(BaseModel):
+    message: str
+    history: List[ChatMessage] = Field(default_factory=list)
+    current_plan: Optional[Dict[str, Any]] = None
+
+
+class AssistantChatResponse(BaseModel):
+    reply: str
+
+
 @app.get("/api/health")
 @app.get("/health")
 def health_check():
@@ -168,6 +180,35 @@ def chat_turn(payload: ChatRequest):
         raise HTTPException(
             status_code=500,
             detail="Failed to process chat message",
+        )
+
+
+@app.post(
+    "/api/assistant/chat",
+    response_model=AssistantChatResponse,
+)
+def assistant_chat(payload: AssistantChatRequest):
+    if not payload.message.strip():
+        raise HTTPException(
+            status_code=422,
+            detail="Message cannot be empty.",
+        )
+
+    try:
+        reply = answer_study_question(
+            message=payload.message,
+            history=payload.history,
+            current_plan=payload.current_plan,
+        )
+
+        return AssistantChatResponse(reply=reply)
+
+    except Exception as e:
+        print(f"[Backend] Groq assistant error: {e}")
+
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to process assistant message.",
         )
 
 

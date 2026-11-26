@@ -79,7 +79,7 @@ async def create_session(user_id: str, refresh_token: str):
         "user_id": ObjectId(user_id),
         "token_hash": hash_token(refresh_token),
         "created_at": now,
-        "expires_at": now + timedelta(days=7),
+        "expires_at": now + timedelta(days=30),
     }
 
     await get_sessions_collection().insert_one(session)
@@ -104,7 +104,7 @@ async def rotate_session(old_token: str, new_token: str) -> bool:
             "$set": {
                 "token_hash": hash_token(new_token),
                 "created_at": now,
-                "expires_at": now + timedelta(days=7),
+                "expires_at": now + timedelta(days=30),
             }
         },
     )

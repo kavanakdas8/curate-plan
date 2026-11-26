@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { CourseSelectionPage } from "@/components/landing/CourseSelectionPage";
 import { OnboardingSelection, StudyPlan, SavedPlan } from "@/types/study";
 import {
+  STORAGE_KEY_PLANS,
+  STORAGE_KEY_ACTIVE_ID,
   STORAGE_KEY_ONBOARDING,
   STORAGE_KEY_VIEW_MODE,
   normalizePlanToCurriculum,
@@ -66,13 +68,19 @@ export default function CreatePlanRoute() {
       const normalized = normalizePlanToCurriculum(newSavedPlan);
 
       // Persist in localStorage and sessionStorage
-      // Keep the generated curriculum as a temporary draft.
-      // It will only be saved to MongoDB when the user clicks Save.
+      // Keep the generated curriculum as a draft locally and in session.
+      // It will also sync to MongoDB when the user clicks Save.
       try {
         sessionStorage.setItem(
           "curateplan_pending_draft_v1",
           JSON.stringify(normalized)
         );
+
+        const existingPlansRaw = localStorage.getItem(STORAGE_KEY_PLANS);
+        const existingPlans: SavedPlan[] = existingPlansRaw ? JSON.parse(existingPlansRaw) : [];
+        const cleanExisting = existingPlans.filter((p) => p.id !== normalized.id && !p.id.startsWith("plan_seed_"));
+        localStorage.setItem(STORAGE_KEY_PLANS, JSON.stringify([normalized, ...cleanExisting]));
+        localStorage.setItem(STORAGE_KEY_ACTIVE_ID, normalized.id);
 
         localStorage.setItem(
           STORAGE_KEY_ONBOARDING,

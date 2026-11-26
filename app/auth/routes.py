@@ -25,7 +25,7 @@ from database.users import (
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
 REFRESH_COOKIE_NAME = "curateplan_refresh"
-REFRESH_COOKIE_MAX_AGE = 7 * 24 * 60 * 60
+REFRESH_COOKIE_MAX_AGE = 30 * 24 * 60 * 60
 
 # Keep false for local HTTP development.
 # Set COOKIE_SECURE=true when deployed behind HTTPS.

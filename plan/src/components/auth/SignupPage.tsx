@@ -9,16 +9,21 @@ import {
 } from "lucide-react";
 import { BrandLogo } from "@/components/BrandLogo";
 import { BackButton } from "@/components/BackButton";
+import { useAuth } from "@/components/auth/AuthProvider";
 
 interface SignupPageProps {
   onBackToLanding?: () => void;
   onNavigateLogin: () => void;
+  onAuthSuccess: () => void;
 }
 
 export function SignupPage({
   onBackToLanding,
   onNavigateLogin,
+  onAuthSuccess,
 }: SignupPageProps) {
+  const { register } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -30,7 +35,7 @@ export function SignupPage({
   const [error, setError] = useState<string | null>(null);
   const [demoMessage, setDemoMessage] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setDemoMessage(null);
@@ -38,8 +43,8 @@ export function SignupPage({
     const trimmedName = fullName.trim();
     const trimmedEmail = email.trim();
 
-    if (!trimmedName) {
-      setError("Please enter your full name.");
+    if (trimmedName.length < 2) {
+      setError("Please enter your name (at least 2 characters).");
       return;
     }
 
@@ -63,11 +68,22 @@ export function SignupPage({
       return;
     }
 
-    setPassword("");
-    setConfirmPassword("");
-    setDemoMessage(
-      `Account created for ${trimmedName} (${trimmedEmail}). You can now start planning your curriculum.`
-    );
+    setIsSubmitting(true);
+
+    try {
+      await register(trimmedName, trimmedEmail, password);
+      setPassword("");
+      setConfirmPassword("");
+      onAuthSuccess();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to create your account. Please try again."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -252,9 +268,10 @@ export function SignupPage({
 
             <button
               type="submit"
-              className="w-full py-3 rounded-xl bg-[#059669] hover:bg-[#047857] text-white font-semibold text-sm transition shadow-sm cursor-pointer mt-2"
+              disabled={isSubmitting}
+              className="w-full py-3 rounded-xl bg-[#059669] hover:bg-[#047857] disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold text-sm transition shadow-sm cursor-pointer mt-2"
             >
-              Create Account
+              {isSubmitting ? "Creating account..." : "Create Account"}
             </button>
           </form>
 

@@ -9,16 +9,21 @@ import {
 } from "lucide-react";
 import { BrandLogo } from "@/components/BrandLogo";
 import { BackButton } from "@/components/BackButton";
+import { useAuth } from "@/components/auth/AuthProvider";
 
 interface LoginPageProps {
   onBackToLanding?: () => void;
   onNavigateSignup: () => void;
+  onAuthSuccess: () => void;
 }
 
 export function LoginPage({
   onBackToLanding,
   onNavigateSignup,
+  onAuthSuccess,
 }: LoginPageProps) {
+  const { login } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -27,12 +32,13 @@ export function LoginPage({
   const [error, setError] = useState<string | null>(null);
   const [demoMessage, setDemoMessage] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setDemoMessage(null);
 
     const trimmedEmail = email.trim();
+
     if (!trimmedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
       setError("Please enter a valid email address.");
       return;
@@ -43,10 +49,22 @@ export function LoginPage({
       return;
     }
 
-    setPassword("");
-    setDemoMessage(
-      `Form validation passed for ${trimmedEmail}. You can continue to your study planner.`
-    );
+    setIsSubmitting(true);
+
+    try {
+      await login(trimmedEmail, password);
+
+      console.log("LOGIN SUCCESS");
+      console.log("onAuthSuccess callback:", onAuthSuccess);
+
+      onAuthSuccess?.();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Unable to log in. Please try again."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleForgotPassword = () => {
@@ -191,9 +209,10 @@ export function LoginPage({
 
             <button
               type="submit"
-              className="w-full py-3 rounded-xl bg-[#059669] hover:bg-[#047857] text-white font-semibold text-sm transition shadow-sm cursor-pointer mt-2"
+              disabled={isSubmitting}
+              className="w-full py-3 rounded-xl bg-[#059669] hover:bg-[#047857] disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold text-sm transition shadow-sm cursor-pointer mt-2"
             >
-              Login
+              {isSubmitting ? "Logging in..." : "Login"}
             </button>
           </form>
 

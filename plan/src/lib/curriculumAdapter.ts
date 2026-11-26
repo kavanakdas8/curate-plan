@@ -26,7 +26,7 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
     displayName: "User",
     avatarInitials: "U",
     defaultDashboardView: "table",
-    defaultPlanId: "plan_seed_enterprise_01",
+    defaultPlanId: "",
     language: "en",
     dateFormat: "YYYY-MM-DD",
     timeFormat: "12h",
