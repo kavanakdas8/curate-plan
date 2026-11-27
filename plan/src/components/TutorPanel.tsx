@@ -22,6 +22,8 @@ type ChatMessage = {
 
 type TutorPanelProps = {
     currentPlan: Record<string, unknown> | null;
+    isOpen?: boolean;
+    onClose?: () => void;
 };
 
 const API_BASE_URL =
@@ -33,8 +35,17 @@ const STARTER_QUESTIONS = [
     "Quiz me on what I'm learning",
 ];
 
-export function TutorPanel({ currentPlan }: TutorPanelProps) {
-    const [isOpen, setIsOpen] = useState(false);
+export function TutorPanel({ currentPlan, isOpen: controlledIsOpen, onClose }: TutorPanelProps) {
+    const [internalIsOpen, setInternalIsOpen] = useState(false);
+    const isOpen = controlledIsOpen !== undefined ? controlledIsOpen : internalIsOpen;
+
+    const handleClose = () => {
+        if (onClose) {
+            onClose();
+        } else {
+            setInternalIsOpen(false);
+        }
+    };
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -141,21 +152,6 @@ export function TutorPanel({ currentPlan }: TutorPanelProps) {
 
     return (
         <>
-            {/* Floating Tutor Launcher */}
-            {!isOpen && (
-                <button
-                    type="button"
-                    onClick={() => setIsOpen(true)}
-                    className="fixed right-0 top-1/2 -translate-y-1/2 z-40 flex items-center gap-2 rounded-l-xl bg-emerald-600 px-3 py-4 text-white shadow-lg transition hover:bg-emerald-700 hover:pr-5"
-                    aria-label="Open AI Tutor"
-                >
-
-                    <span className="text-xs font-semibold [writing-mode:vertical-rl] rotate-180">
-                        AI TUTOR
-                    </span>
-                </button>
-            )}
-
             {/* Tutor Slide-out Panel */}
             <div
                 className={`fixed right-4 top-4 bottom-4 z-50 flex w-[420px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl transition-all duration-300 ${isOpen
@@ -190,7 +186,7 @@ export function TutorPanel({ currentPlan }: TutorPanelProps) {
 
                         <button
                             type="button"
-                            onClick={() => setIsOpen(false)}
+                            onClick={handleClose}
                             title="Close tutor"
                             className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
                         >

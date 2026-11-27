@@ -14,8 +14,6 @@ interface LandingNavbarProps {
 export function LandingNavbar({
   onNavigateLogin,
   onNavigateSignup,
-  onOpenDashboard,
-  hasExistingWorkspace = false,
 }: LandingNavbarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeLink, setActiveLink] = useState<string>("home");
@@ -70,25 +68,15 @@ export function LandingNavbar({
                 key={item.id}
                 type="button"
                 onClick={() => handleNavClick(item.id)}
-                className={`transition cursor-pointer py-1 ${
-                  isActive
+                className={`transition cursor-pointer py-1 ${isActive
                     ? "text-[#059669] font-semibold"
                     : "text-[#0F172A]/75 hover:text-[#0F172A]"
-                }`}
+                  }`}
               >
                 {item.label}
               </button>
             );
           })}
-          {hasExistingWorkspace && onOpenDashboard && (
-            <button
-              type="button"
-              onClick={onOpenDashboard}
-              className="text-[#059669] hover:text-[#047857] font-semibold transition cursor-pointer py-1"
-            >
-              Dashboard
-            </button>
-          )}
         </nav>
 
         {/* Right: Lightweight Auth Actions */}
@@ -129,27 +117,14 @@ export function LandingNavbar({
                 key={item.id}
                 type="button"
                 onClick={() => handleNavClick(item.id)}
-                className={`px-3 py-2.5 text-left text-sm font-medium rounded-lg transition cursor-pointer ${
-                  activeLink === item.id
+                className={`px-3 py-2.5 text-left text-sm font-medium rounded-lg transition cursor-pointer ${activeLink === item.id
                     ? "text-[#059669] bg-[#ECFDF5] font-semibold"
                     : "text-[#0F172A] hover:bg-[#F8FAFC]"
-                }`}
+                  }`}
               >
                 {item.label}
               </button>
             ))}
-            {hasExistingWorkspace && onOpenDashboard && (
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  onOpenDashboard();
-                }}
-                className="px-3 py-2.5 text-left text-sm font-semibold text-[#059669] hover:bg-[#ECFDF5] rounded-lg transition cursor-pointer"
-              >
-                Open Dashboard
-              </button>
-            )}
           </div>
 
           <div className="pt-4 border-t border-[#E2E8F0] flex flex-col gap-2.5">

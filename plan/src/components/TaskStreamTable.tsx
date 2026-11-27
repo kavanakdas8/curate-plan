@@ -55,7 +55,7 @@ export function TaskStreamTable({
     }));
   };
 
-  // Flatten tasks with metadata
+  // Flatten tasks with metadata and full searchable context
   const allTasks = React.useMemo(() => {
     const list: Array<{
       task: Task;
@@ -64,21 +64,32 @@ export function TaskStreamTable({
       periodIndex: number;
       taskIndex: number;
       code: string;
+      fullContext: string;
     }> = [];
 
     let overallIndex = 1;
     plan.schedule.forEach((period, pIdx) => {
+      const pLabel = (period.period_label || "").trim();
+      const pSummary = (period.topic_summary || "").trim();
+      const mod = plan.modules?.[pIdx];
+      const modTitle = (mod?.title || "").trim();
+      const modSummary = (mod?.summary || "").trim();
+      const topicNames = (mod?.topics?.map((t) => t.name) || []).join(" ");
+      const topicDescs = (mod?.topics?.map((t) => t.description) || []).join(" ");
+
       period.tasks.forEach((task, tIdx) => {
         const taskId = `${plan.id}_${pIdx}_${tIdx}`;
         const code = overallIndex.toString().padStart(2, "0");
         overallIndex++;
+        const fullContext = `${task.title || ""} ${task.description || ""} ${task.resource_type || ""} ${pLabel} ${pSummary} ${modTitle} ${modSummary} ${topicNames} ${topicDescs}`.toLowerCase();
         list.push({
           task,
           taskId,
-          periodLabel: period.period_label,
+          periodLabel: pLabel,
           periodIndex: pIdx,
           taskIndex: tIdx,
           code,
+          fullContext,
         });
       });
     });
@@ -86,18 +97,38 @@ export function TaskStreamTable({
     return list;
   }, [plan]);
 
-  // Filter tasks based on search, resource filter, and selected period node
+  // Filter tasks based on search (including topic names & period labels), resource filter, and selected period node
   const filteredTasks = React.useMemo(() => {
-    return allTasks.filter(({ task, periodIndex }) => {
+    return allTasks.filter(({ task, periodLabel, periodIndex }) => {
       if (selectedPeriodIndex !== null && periodIndex !== selectedPeriodIndex) {
         return false;
       }
 
       if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const titleMatch = (task.title || "").toLowerCase().includes(q);
-        const descMatch = (task.description || "").toLowerCase().includes(q);
-        if (!titleMatch && !descMatch) return false;
+        const q = searchQuery.toLowerCase().trim();
+        const pLabel = (periodLabel || "").toLowerCase().trim();
+
+        // Check if query is explicitly asking for a period (e.g. "week 1", "week 2", "day 3")
+        const isPeriodQuery =
+          q === pLabel ||
+          /^(week|day|module|period)\s*\d+/i.test(q);
+
+        if (isPeriodQuery) {
+          // If searching for a period (e.g. "Week 2"), match all tasks belonging to that period
+          const matchesPeriod = pLabel.includes(q) || q.includes(pLabel);
+          if (!matchesPeriod) return false;
+        } else {
+          // If searching for a specific topic/keyword (e.g. "numpy", "setup"):
+          // ONLY match tasks whose title, description, or resource type specifically matches!
+          const qWords = q.split(/[\s:,\->]+/).filter(Boolean);
+          const taskContext = `${task.title || ""} ${task.description || ""} ${task.resource_type || ""}`.toLowerCase();
+          const matchesTask =
+            qWords.length > 0
+              ? qWords.every((w) => taskContext.includes(w))
+              : taskContext.includes(q);
+
+          if (!matchesTask) return false;
+        }
       }
 
       if (resourceFilter && resourceFilter !== "All") {

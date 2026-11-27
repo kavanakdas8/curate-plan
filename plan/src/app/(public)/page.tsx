@@ -47,7 +47,6 @@ import {
   X,
   Plus,
   ArrowRight,
-  BookOpen,
 } from "lucide-react";
 
 export default function Home() {
@@ -89,6 +88,7 @@ export default function Home() {
 
   // Focus Timer State
   const [activeTimer, setActiveTimer] = useState<ActiveTimer | null>(null);
+  const [isTutorOpen, setIsTutorOpen] = useState(false);
 
   // Landing & Onboarding Flow State
   const [viewMode, setViewMode] = useState<AppViewMode>("landing");
@@ -168,10 +168,30 @@ export default function Home() {
 
         if (cancelled) return;
 
-        // Merge: local plans + remote plans (remote overrides matching ID) + pendingDraft
+        // Merge: local plans + remote plans (preserve revisions and milestones properly)
         const planMap = new Map<string, SavedPlan>();
         localPlans.forEach((p) => planMap.set(p.id, p));
-        remotePlans.forEach((p) => planMap.set(p.id, p));
+        remotePlans.forEach((remoteP) => {
+          const localP = planMap.get(remoteP.id);
+          if (localP) {
+            // If local has milestones explicitly set (including empty array after deletion), prefer local if remote is undefined
+            const mergedMilestones =
+              localP.milestones !== undefined
+                ? localP.milestones
+                : remoteP.milestones || [];
+            const mergedRevisions =
+              localP.revisions !== undefined
+                ? localP.revisions
+                : remoteP.revisions || [];
+            planMap.set(remoteP.id, {
+              ...remoteP,
+              milestones: mergedMilestones,
+              revisions: mergedRevisions,
+            });
+          } else {
+            planMap.set(remoteP.id, remoteP);
+          }
+        });
         if (pendingDraft) {
           planMap.set(pendingDraft.id, pendingDraft);
         }
@@ -181,7 +201,25 @@ export default function Home() {
           plans = [pendingDraft, ...plans.filter((p) => p.id !== pendingDraft!.id)];
         }
 
-        const progress: Record<string, boolean> = storedProgress ? JSON.parse(storedProgress) : {};
+        let progress: Record<string, boolean> = {};
+        if (storedProgress) {
+          try {
+            const parsedProgress = JSON.parse(storedProgress) as Record<string, boolean>;
+            Object.entries(parsedProgress).forEach(([key, isDone]) => {
+              if (isDone && !key.startsWith("plan_seed_")) {
+                const parts = key.split("_");
+                if (parts.length >= 3) {
+                  const planId = parts.slice(0, parts.length - 2).join("_");
+                  if (plans.some((p) => p.id === planId)) {
+                    progress[key] = true;
+                  }
+                }
+              }
+            });
+          } catch {
+            progress = {};
+          }
+        }
 
         setSavedPlans(plans);
         setCompletedTasksMap(progress);
@@ -198,7 +236,16 @@ export default function Home() {
 
         if (storedSessions) {
           try {
-            setSessions(JSON.parse(storedSessions));
+            const parsed = JSON.parse(storedSessions) as StudySession[];
+            if (Array.isArray(parsed)) {
+              setSessions(
+                parsed.filter(
+                  (s) => s && !s.planId?.startsWith("plan_seed_") && plans.some((p) => p.id === s.planId)
+                )
+              );
+            } else {
+              setSessions([]);
+            }
           } catch {
             setSessions([]);
           }
@@ -277,9 +324,22 @@ export default function Home() {
   useEffect(() => {
     if (!mounted) return;
     try {
-      localStorage.setItem(STORAGE_KEY_PROGRESS, JSON.stringify(completedTasksMap));
+      const validPlanIds = new Set(savedPlans.map((p) => p.id));
+      const cleanProgress: Record<string, boolean> = {};
+      Object.entries(completedTasksMap).forEach(([key, val]) => {
+        if (!key.startsWith("plan_seed_")) {
+          const parts = key.split("_");
+          if (parts.length >= 3) {
+            const planId = parts.slice(0, parts.length - 2).join("_");
+            if (validPlanIds.has(planId)) {
+              cleanProgress[key] = val;
+            }
+          }
+        }
+      });
+      localStorage.setItem(STORAGE_KEY_PROGRESS, JSON.stringify(cleanProgress));
     } catch { }
-  }, [completedTasksMap, mounted]);
+  }, [completedTasksMap, savedPlans, mounted]);
 
   useEffect(() => {
     if (!mounted) return;
@@ -451,12 +511,25 @@ export default function Home() {
   }, [activePlan, completedTasksMap]);
 
   const totalAllCompletedTasks = useMemo(() => {
-    return Object.values(completedTasksMap).filter(Boolean).length;
-  }, [completedTasksMap]);
+    let count = 0;
+    savedPlans.forEach((plan) => {
+      plan.schedule?.forEach((period, pIdx) => {
+        period.tasks?.forEach((_, tIdx) => {
+          if (completedTasksMap[`${plan.id}_${pIdx}_${tIdx}`]) {
+            count++;
+          }
+        });
+      });
+    });
+    return count;
+  }, [savedPlans, completedTasksMap]);
 
   const totalStudyMinutes = useMemo(() => {
-    return sessions.reduce((acc, s) => acc + (s.durationMinutes || 0), 0);
-  }, [sessions]);
+    const validPlanIds = new Set(savedPlans.map((p) => p.id));
+    return sessions
+      .filter((s) => validPlanIds.has(s.planId))
+      .reduce((acc, s) => acc + (s.durationMinutes || 0), 0);
+  }, [sessions, savedPlans]);
 
   // Next pending tasks for today's schedule and upcoming section
   const pendingTasksList = useMemo(() => {
@@ -604,11 +677,24 @@ export default function Home() {
     });
   };
 
-  // Update the in-memory plan. Changes are persisted only when Save is clicked.
+  // Update the in-memory plan and automatically persist changes locally and to backend
   const handleUpdatePlan = (updatedPlan: SavedPlan) => {
-    setSavedPlans((prev) =>
-      prev.map((p) => (p.id === updatedPlan.id ? updatedPlan : p))
-    );
+    setSavedPlans((prev) => {
+      const next = prev.map((p) => (p.id === updatedPlan.id ? updatedPlan : p));
+      try {
+        const cleanPlans = next.filter((p) => !p.id.startsWith("plan_seed_"));
+        localStorage.setItem(STORAGE_KEY_PLANS, JSON.stringify(cleanPlans));
+      } catch { }
+      return next;
+    });
+
+    // Auto-sync plan updates (revisions, milestones, schedule) to MongoDB backend
+    if (updatedPlan.id && !updatedPlan.id.startsWith("draft_") && !updatedPlan.id.startsWith("plan_seed_")) {
+      updateCurriculum(updatedPlan.id, updatedPlan).catch((err) => {
+        console.warn("[CuratePlan] Auto-syncing plan to backend failed:", err);
+      });
+    }
+
     setSaveStatus("idle");
   };
 
@@ -914,8 +1000,15 @@ export default function Home() {
         {/* Global Top Navbar */}
         <TopBar
           activePlan={activePlan}
+          allPlans={savedPlans}
+          onSelectPlan={(planId) => {
+            setActivePlanId(planId);
+            setActiveNavTab("curriculum");
+          }}
           onSave={handleSavePlan}
           saveStatus={saveStatus}
+          onToggleTutor={() => setIsTutorOpen((prev) => !prev)}
+          isTutorOpen={isTutorOpen}
           onOpenMobileMenu={() => setIsMobileSidebarOpen(true)}
           onOpenCreateModal={() => handleOpenCreatePlan()}
           onOpenHistoryModal={() => setIsHistoryDrawerOpen(true)}
@@ -925,7 +1018,19 @@ export default function Home() {
           onClearCompleted={handleClearCompleted}
           onFocusSearch={() => searchInputRef.current?.focus()}
           searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
+          onSearchChange={(q) => {
+            setSearchQuery(q);
+            if (q.trim() && activeNavTab !== "curriculum") {
+              setActiveNavTab("curriculum");
+            }
+          }}
+          onSelectTopic={(topicName, planId) => {
+            if (planId && planId !== activePlanId) {
+              setActivePlanId(planId);
+            }
+            setSearchQuery(topicName);
+            setActiveNavTab("curriculum");
+          }}
           onOpenAbout={() => setIsAboutModalOpen(true)}
         />
 
@@ -975,35 +1080,20 @@ export default function Home() {
                 <>
                   {/* Quick Stats Summary */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-                    <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600">
-                        <BookOpen className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <div className="text-xs text-slate-500 font-medium">Active Plans</div>
-                        <div className="text-lg font-bold text-slate-900">{savedPlans.filter((p) => !p.isArchived).length}</div>
-                      </div>
+                    <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">
+                      <div className="text-xs text-slate-500 font-medium">Active Plans</div>
+                      <div className="text-lg font-bold text-slate-900 mt-1">{savedPlans.filter((p) => !p.isArchived).length}</div>
                     </div>
 
-                    <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600">
-                        <CheckCircle2 className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <div className="text-xs text-slate-500 font-medium">Tasks Completed</div>
-                        <div className="text-lg font-bold text-slate-900">{totalAllCompletedTasks}</div>
-                      </div>
+                    <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">
+                      <div className="text-xs text-slate-500 font-medium">Tasks Completed</div>
+                      <div className="text-lg font-bold text-slate-900 mt-1">{totalAllCompletedTasks}</div>
                     </div>
 
-                    <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600">
-                        <Clock className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <div className="text-xs text-slate-500 font-medium">Total Study Time</div>
-                        <div className="text-lg font-bold text-slate-900">
-                          {totalStudyMinutes >= 60 ? `${(totalStudyMinutes / 60).toFixed(1)} hrs` : `${totalStudyMinutes} mins`}
-                        </div>
+                    <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">
+                      <div className="text-xs text-slate-500 font-medium">Total Study Time</div>
+                      <div className="text-lg font-bold text-slate-900 mt-1">
+                        {totalStudyMinutes >= 60 ? `${(totalStudyMinutes / 60).toFixed(1)} hrs` : `${totalStudyMinutes} mins`}
                       </div>
                     </div>
                   </div>
@@ -1053,11 +1143,6 @@ export default function Home() {
                                 <span className="text-[10px] font-mono font-semibold uppercase tracking-wider text-slate-400">
                                   {plan.target_timeframe || "Self-Paced"} • {moduleCount} {moduleCount === 1 ? "Module" : "Modules"}
                                 </span>
-                                {isActive && (
-                                  <span className="px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold text-[10px]">
-                                    Active
-                                  </span>
-                                )}
                               </div>
                               <h3 className="text-sm font-bold text-slate-900 line-clamp-1">
                                 {plan.subject}
@@ -1353,6 +1438,8 @@ export default function Home() {
               ? (activePlan as unknown as Record<string, unknown>)
               : null
           }
+          isOpen={isTutorOpen}
+          onClose={() => setIsTutorOpen(false)}
         />
       )}
       {/* Slide-out Plan History Drawer */}

@@ -120,7 +120,7 @@ export function LandingPage({
                   key={item.step}
                   className="p-6 rounded-2xl bg-white border border-[#E2E8F0] shadow-2xs space-y-3"
                 >
-                  <span className="inline-block text-xs font-mono font-bold text-[#059669] bg-[#ECFDF5] border border-[#D1FAE5] px-2.5 py-1 rounded-lg">
+                  <span className="inline-block text-xs font-mono font-bold text-[#059669] border border-[#D1FAE5] px-2.5 py-1 rounded-lg">
                     Step {item.step}
                   </span>
                   <h3 className="text-base font-bold text-[#0F172A]">
@@ -157,40 +157,31 @@ export function LandingPage({
       </main>
 
       {/* Footer */}
+
       <footer className="bg-[#F8FAFC] border-t border-[#E2E8F0] py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-[#475569]">
-          <div className="flex items-center gap-2">
-            <BrandLogo className="w-7 h-5" />
-            <span className="font-bold text-[#0F172A]">CuratePlan</span>
-            <span className="text-[#94A3B8]"> Plan Smarter. Learn Better.</span>
+
+          <p>
+            © 2026 CuratePlan. All rights reserved.
+          </p>
+
+          <div className="flex flex-wrap items-center justify-center gap-5">
+            <a href="#" onClick={(e) => e.preventDefault()} className="hover:text-[#0F172A] transition-colors">
+              Privacy Policy
+            </a>
+
+            <a href="#" onClick={(e) => e.preventDefault()} className="hover:text-[#0F172A] transition-colors">
+              Terms of Service
+            </a>
+
+            <a href="#" onClick={(e) => e.preventDefault()} className="hover:text-[#0F172A] transition-colors">
+              Cookie Policy
+            </a>
           </div>
-          <div className="flex items-center gap-5">
-            <button
-              type="button"
-              onClick={onNavigateLogin}
-              className="hover:text-[#059669] transition cursor-pointer"
-            >
-              Login
-            </button>
-            <button
-              type="button"
-              onClick={onNavigateSignup}
-              className="hover:text-[#059669] transition cursor-pointer"
-            >
-              Sign Up
-            </button>
-            {hasExistingWorkspace && onOpenDashboard && (
-              <button
-                type="button"
-                onClick={onOpenDashboard}
-                className="hover:text-[#059669] font-semibold transition cursor-pointer"
-              >
-                Open Workspace
-              </button>
-            )}
-          </div>
+
         </div>
       </footer>
+
     </div>
   );
 }

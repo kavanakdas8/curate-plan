@@ -12,17 +12,6 @@ interface CourseSelectionProps {
   generationError?: string | null;
 }
 
-const SUGGESTED_SUBJECTS = [
-  "Python",
-  "Machine Learning",
-  "Web Development",
-  "Data Structures & Algorithms",
-  "System Design",
-  "Cloud Computing",
-  "Mathematics",
-  "Cybersecurity",
-];
-
 const DAILY_TIME_OPTIONS = [
   { id: "30m", label: "30 minutes", sublabel: "Light daily habit", minutes: 30 },
   { id: "1h", label: "1 hour", sublabel: "Balanced steady pace", minutes: 60 },

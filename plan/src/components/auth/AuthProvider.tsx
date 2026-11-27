@@ -80,8 +80,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     const logout = async () => {
-        await logoutRequest();
         setUser(null);
+        try {
+            await logoutRequest();
+        } catch { }
     };
 
     return (

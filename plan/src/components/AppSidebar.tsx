@@ -419,13 +419,20 @@ export function AppSidebar({
             <div className="pt-2">
               <button
                 type="button"
-                onClick={async () => {
+                onClick={() => {
                   setIsProfileMenuOpen(false);
-                  await logout();
                   try {
                     sessionStorage.setItem(STORAGE_KEY_VIEW_MODE, "landing");
                   } catch { }
-                  router.replace("/?view=landing");
+                  if (typeof window !== "undefined") {
+                    window.history.replaceState(null, "", "/");
+                  }
+                  if (onReturnHome) {
+                    onReturnHome();
+                  } else {
+                    router.replace("/?view=landing");
+                  }
+                  void logout();
                 }}
                 className="w-full py-2 px-3 rounded-xl hover:bg-red-50 text-slate-600 hover:text-red-700 font-medium text-xs flex items-center gap-2 transition cursor-pointer"
               >

@@ -268,18 +268,8 @@ export function exportCurriculumToPDF(
       currentY + 6.5
     );
 
-    // Module summary subtext
-    if (mod.summary) {
-      currentY += 12;
-      doc.setFont("helvetica", "italic");
-      doc.setFontSize(7.5);
-      doc.setTextColor(100, 116, 139);
-      const sumLines = doc.splitTextToSize(sanitizeText(mod.summary), contentWidth);
-      doc.text(sumLines, marginX + 2, currentY);
-      currentY += sumLines.length * 3.8 + 2;
-    } else {
-      currentY += 12;
-    }
+    // Module Header Box completed; advance spacing cleanly to start topics table
+    currentY += 13;
 
     // Module Topics Table (No Status column, clean task bullets)
     const topicRows = mod.topics.map((top, tIdx) => {
@@ -391,6 +381,57 @@ export function exportCurriculumToPDF(
 
     const afterMs = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable;
     currentY = (afterMs?.finalY || currentY) + 7;
+  }
+
+  // TABLE: Spaced Revision Schedule
+  if (plan.revisions && plan.revisions.length > 0) {
+    if (currentY > 240) {
+      doc.addPage();
+      currentY = 22;
+    }
+
+    const revisionRows = plan.revisions.map((rev, idx) => [
+      String(idx + 1),
+      sanitizeText(rev.topicName),
+      sanitizeText(rev.moduleTitle) || "Curriculum Focus",
+      `Stage ${rev.stage || 1} (${rev.intervalDays || 1}d cadence)`,
+      rev.dueDate || "—",
+    ]);
+
+    callAutoTable({
+      startY: currentY,
+      margin: { left: marginX, right: marginX },
+      head: [["#", "Revision Topic", "Module Context", "Cadence / Stage", "Scheduled Due Date"]],
+      body: revisionRows,
+      theme: "grid",
+      styles: {
+        font: "helvetica",
+        fontSize: 7.5,
+        cellPadding: 2.5,
+        textColor: [51, 65, 85],
+        lineColor: [226, 232, 240],
+        lineWidth: 0.2,
+      },
+      headStyles: {
+        fillColor: [5, 150, 105],
+        textColor: [255, 255, 255],
+        fontStyle: "bold",
+        fontSize: 8,
+      },
+      columnStyles: {
+        0: { cellWidth: 12, halign: "center" },
+        1: { cellWidth: 60, fontStyle: "bold" },
+        2: { cellWidth: 50 },
+        3: { cellWidth: 32, halign: "center" },
+        4: { cellWidth: 28, halign: "center" },
+      },
+      alternateRowStyles: {
+        fillColor: [248, 250, 252],
+      },
+    });
+
+    const afterRev = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable;
+    currentY = (afterRev?.finalY || currentY) + 7;
   }
 
   // 4. Two-Pass Running Headers & Footers on Every Page

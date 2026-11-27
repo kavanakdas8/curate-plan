@@ -278,6 +278,20 @@ export function CurriculumRoadmapView({
     playChime("click");
   };
 
+  // Delete Milestone
+  const handleDeleteMilestone = (msId: string) => {
+    const updated = milestones.filter((m) => m.id !== msId);
+    onUpdatePlan({ ...plan, milestones: updated });
+    playChime("click");
+  };
+
+  // Delete Spaced Revision
+  const handleDeleteRevision = (revId: string) => {
+    const updated = revisions.filter((r) => r.id !== revId);
+    onUpdatePlan({ ...plan, revisions: updated });
+    playChime("click");
+  };
+
   // Complete Spaced Revision
   const handleCompleteRevision = (revId: string) => {
     const nextIntervals = userSettings.study.revisionIntervals || [1, 3, 7, 14];
@@ -587,9 +601,19 @@ export function CurriculumRoadmapView({
                   <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
                     Stage {rev.stage} ({rev.intervalDays}d cycle)
                   </span>
-                  <span className="text-xs font-mono text-slate-500">
-                    Due: {rev.dueDate}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-slate-500">
+                      Due: {rev.dueDate}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteRevision(rev.id)}
+                      className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                      title="Delete revision"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
 
                 <div>
@@ -685,6 +709,14 @@ export function CurriculumRoadmapView({
                   >
                     {ms.completed ? "Completed" : "In Progress"}
                   </span>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteMilestone(ms.id)}
+                    className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                    title="Delete milestone"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
             ))}

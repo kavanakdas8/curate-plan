@@ -180,8 +180,12 @@ export function normalizePlanToCurriculum(
     };
   });
 
-  const milestones = generateDefaultMilestones(plan, modules);
-  const revisions = generateDefaultRevisions(plan, modules);
+  const milestones = plan.milestones && plan.milestones.length > 0
+    ? plan.milestones
+    : generateDefaultMilestones(plan, modules);
+  const revisions = plan.revisions && plan.revisions.length > 0
+    ? plan.revisions
+    : generateDefaultRevisions(plan, modules);
 
   return {
     ...plan,

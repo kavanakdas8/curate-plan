@@ -29,12 +29,28 @@ export function KanbanView({
   onEditModule,
   onDeleteModule,
 }: KanbanViewProps) {
-  const matchesFilter = (task: Task) => {
+  const matchesFilter = (task: Task, period: (typeof plan.schedule)[0]) => {
     if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      const matchTitle = (task.title || "").toLowerCase().includes(q);
-      const matchDesc = (task.description || "").toLowerCase().includes(q);
-      if (!matchTitle && !matchDesc) return false;
+      const q = searchQuery.toLowerCase().trim();
+      const pLabel = (period.period_label || "").toLowerCase().trim();
+
+      const isPeriodQuery =
+        q === pLabel ||
+        /^(week|day|module|period)\s*\d+/i.test(q);
+
+      if (isPeriodQuery) {
+        const matchesPeriod = pLabel.includes(q) || q.includes(pLabel);
+        if (!matchesPeriod) return false;
+      } else {
+        const qWords = q.split(/[\s:,\->]+/).filter(Boolean);
+        const taskContext = `${task.title || ""} ${task.description || ""} ${task.resource_type || ""}`.toLowerCase();
+        const matchesTask =
+          qWords.length > 0
+            ? qWords.every((w) => taskContext.includes(w))
+            : taskContext.includes(q);
+
+        if (!matchesTask) return false;
+      }
     }
     if (resourceFilter && resourceFilter !== "All") {
       if (!(task.resource_type || "").toLowerCase().includes(resourceFilter.toLowerCase())) {
@@ -47,7 +63,7 @@ export function KanbanView({
   return (
     <div className="flex gap-4 overflow-x-auto pb-4 pt-1 snap-x scrollbar-thin">
       {plan.schedule.map((period, pIdx) => {
-        const filteredTasks = period.tasks.filter(matchesFilter);
+        const filteredTasks = period.tasks.filter((t) => matchesFilter(t, period));
         const periodTotalMinutes = period.tasks.reduce(
           (acc, t) => acc + (t.duration_minutes || 0),
           0

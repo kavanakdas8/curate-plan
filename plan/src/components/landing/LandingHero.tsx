@@ -25,7 +25,6 @@ export function LandingHero({ onBuildPlan }: { onBuildPlan?: () => void }) {
 
   return (
     <section className="relative bg-[#F8FAFC] pt-14 pb-16 sm:pt-20 sm:pb-24 border-b border-[#E2E8F0] overflow-hidden">
-      {/* Very Subtle Top-Center Ambient Accent */}
       <div
         className="pointer-events-none absolute inset-x-0 top-0 h-[360px] opacity-40"
         style={{
@@ -34,10 +33,9 @@ export function LandingHero({ onBuildPlan }: { onBuildPlan?: () => void }) {
         }}
       />
 
+      {/*Hero*/}
       <div className="max-w-7xl mx-auto px-5 sm:px-8 lg:px-12 relative z-10">
-        {/* Centered Hero Header Stack */}
         <div className="text-center flex flex-col items-center animate-fade-in">
-          {/* Geometric Display Heading */}
           <h1 className="font-display font-extrabold text-[#0F172A] text-3xl sm:text-4xl md:text-5xl lg:text-[54px] leading-[1.1] tracking-[-0.025em] max-w-4xl mx-auto">
             Turn What You Want to Learn
             <br className="hidden md:inline" />{" "}
@@ -45,13 +43,13 @@ export function LandingHero({ onBuildPlan }: { onBuildPlan?: () => void }) {
             <span className="text-[#059669]">Actually Follow</span>.
           </h1>
 
-          {/* Supporting Description */}
+          {/*Description */}
           <p className="mt-4 sm:mt-5 text-sm sm:text-base md:text-[17px] text-[#64748B] leading-relaxed max-w-2xl mx-auto font-normal">
             Build a structured learning roadmap, stay consistent with your daily
             goals, and turn your ambitions into measurable progress.
           </p>
 
-          {/* CTA Action Buttons */}
+          {/* CTA Buttons */}
           <div className="mt-7 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 w-full sm:w-auto">
             <button
               type="button"
@@ -72,10 +70,10 @@ export function LandingHero({ onBuildPlan }: { onBuildPlan?: () => void }) {
           </div>
         </div>
 
-        {/* Subtle, Screenshot-Style Product Preview */}
+        {/* Website Screenshot Preview */}
         <div className="max-w-5xl mx-auto mt-12 sm:mt-16">
           <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-[0_20px_50px_-15px_rgba(15,23,42,0.07)] overflow-hidden">
-            {/* Minimal Workspace Frame Header */}
+            {/* Workspace Frame Header */}
             <div className="px-5 py-3.5 bg-[#F8FAFC] border-b border-[#E2E8F0] flex items-center justify-between gap-4">
               <div className="flex items-center gap-2.5 min-w-0">
                 <BrandLogo className="w-7 h-5" />
@@ -90,12 +88,12 @@ export function LandingHero({ onBuildPlan }: { onBuildPlan?: () => void }) {
 
               <div className="flex items-center gap-2 shrink-0">
                 <span className="px-2.5 py-0.5 rounded-full bg-[#ECFDF5] border border-[#D1FAE5] text-[#059669] text-[11px] font-semibold">
-                  64% Complete
+                  64% Completed
                 </span>
               </div>
             </div>
 
-            {/* Product Preview Content Grid */}
+            {/* Website Preview Content Grid */}
             <div className="p-5 sm:p-7 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start bg-white">
               {/* Left: Learning Roadmap & Study Tasks */}
               <div className="lg:col-span-7 space-y-4">
@@ -211,11 +209,10 @@ export function LandingHero({ onBuildPlan }: { onBuildPlan?: () => void }) {
                     ].map((item) => (
                       <div
                         key={item.day}
-                        className={`py-2 rounded-lg text-center border text-[10px] font-semibold ${
-                          item.done
-                            ? "bg-[#ECFDF5] border-[#D1FAE5] text-[#059669]"
-                            : "bg-[#F8FAFC] border-[#E2E8F0] text-[#94A3B8]"
-                        }`}
+                        className={`py-2 rounded-lg text-center border text-[10px] font-semibold ${item.done
+                          ? "bg-[#ECFDF5] border-[#D1FAE5] text-[#059669]"
+                          : "bg-[#F8FAFC] border-[#E2E8F0] text-[#94A3B8]"
+                          }`}
                       >
                         {item.day}
                       </div>
