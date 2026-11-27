@@ -45,7 +45,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 }
 
                 const response = await authenticatedFetch(
-                    "http://localhost:8000/api/auth/me"
+                    `${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000"}/api/auth/me`
                 );
 
                 if (!response.ok) {
