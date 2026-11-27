@@ -168,21 +168,20 @@ export default function Home() {
 
         if (cancelled) return;
 
-        // Merge: local plans + remote plans (preserve revisions and milestones properly)
+        // Merge: local plans + remote plans (preserve user-added revisions and milestones)
         const planMap = new Map<string, SavedPlan>();
         localPlans.forEach((p) => planMap.set(p.id, p));
         remotePlans.forEach((remoteP) => {
           const localP = planMap.get(remoteP.id);
           if (localP) {
-            // If local has milestones explicitly set (including empty array after deletion), prefer local if remote is undefined
             const mergedMilestones =
-              localP.milestones !== undefined
-                ? localP.milestones
-                : remoteP.milestones || [];
+              remoteP.milestones && remoteP.milestones.length > 0
+                ? remoteP.milestones
+                : localP.milestones || [];
             const mergedRevisions =
-              localP.revisions !== undefined
-                ? localP.revisions
-                : remoteP.revisions || [];
+              remoteP.revisions && remoteP.revisions.length > 0
+                ? remoteP.revisions
+                : localP.revisions || [];
             planMap.set(remoteP.id, {
               ...remoteP,
               milestones: mergedMilestones,

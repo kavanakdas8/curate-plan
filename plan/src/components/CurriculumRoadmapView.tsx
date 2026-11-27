@@ -21,6 +21,8 @@ import {
   Columns,
   GitCommit,
   Trash2,
+  Edit2,
+  Calendar,
 } from "lucide-react";
 import { playChime } from "@/lib/utils";
 import { syncCurriculumToSchedule } from "@/lib/curriculumAdapter";
@@ -77,6 +79,9 @@ export function CurriculumRoadmapView({
   const [isModuleModalOpen, setIsModuleModalOpen] = useState(false);
   const [editingModule, setEditingModule] = useState<CurriculumModule | null>(null);
   const [isMilestoneModalOpen, setIsMilestoneModalOpen] = useState(false);
+  const [editingMilestone, setEditingMilestone] = useState<Milestone | null>(null);
+  const [isRevisionModalOpen, setIsRevisionModalOpen] = useState(false);
+  const [editingRevision, setEditingRevision] = useState<RevisionItem | null>(null);
   const [isAdaptiveModalOpen, setIsAdaptiveModalOpen] = useState(false);
 
   // Form state for Module
@@ -88,6 +93,13 @@ export function CurriculumRoadmapView({
   const [msDesc, setMsDesc] = useState("");
   const [msTargetDate, setMsTargetDate] = useState("");
   const [msType, setMsType] = useState<Milestone["type"]>("custom");
+
+  // Form state for Revision
+  const [revTopicName, setRevTopicName] = useState("");
+  const [revModuleTitle, setRevModuleTitle] = useState("");
+  const [revStage, setRevStage] = useState(1);
+  const [revIntervalDays, setRevIntervalDays] = useState(1);
+  const [revDueDate, setRevDueDate] = useState("");
 
   const modules = useMemo(() => plan.modules || [], [plan.modules]);
   const milestones = useMemo(() => plan.milestones || [], [plan.milestones]);
@@ -243,23 +255,132 @@ export function CurriculumRoadmapView({
     playChime("complete");
   };
 
-  // Save Milestone
+  // Open Create / Edit Milestone Modal
+  const handleOpenMilestoneModal = (milestone?: Milestone) => {
+    if (milestone) {
+      setEditingMilestone(milestone);
+      setMsTitle(milestone.title);
+      setMsDesc(milestone.description || "");
+      setMsTargetDate(milestone.target_date || "");
+      setMsType(milestone.type || "custom");
+    } else {
+      setEditingMilestone(null);
+      setMsTitle("");
+      setMsDesc("");
+      setMsTargetDate(new Date(Date.now() + 86400000 * 7).toISOString().split("T")[0]);
+      setMsType("custom");
+    }
+    setIsMilestoneModalOpen(true);
+  };
+
+  // Delete Milestone
+  const handleDeleteMilestone = (msId: string) => {
+    const target = milestones.find((m) => m.id === msId);
+    if (!confirm(`Are you sure you want to delete milestone "${target?.title || "this milestone"}"?`)) {
+      return;
+    }
+    const updated = milestones.filter((m) => m.id !== msId);
+    onUpdatePlan({ ...plan, milestones: updated });
+    playChime("click");
+  };
+
+  // Save Milestone (Create or Edit)
   const handleSaveMilestone = () => {
     if (!msTitle.trim()) return;
-    const newMs: Milestone = {
-      id: `ms_${Date.now()}`,
-      title: msTitle.trim(),
-      description: msDesc.trim(),
-      target_date: msTargetDate,
-      type: msType,
-      completed: false,
-    };
 
-    onUpdatePlan({
-      ...plan,
-      milestones: [...milestones, newMs],
-    });
+    if (editingMilestone) {
+      const updated = milestones.map((m) =>
+        m.id === editingMilestone.id
+          ? {
+              ...m,
+              title: msTitle.trim(),
+              description: msDesc.trim(),
+              target_date: msTargetDate,
+              type: msType,
+            }
+          : m
+      );
+      onUpdatePlan({ ...plan, milestones: updated });
+    } else {
+      const newMs: Milestone = {
+        id: `ms_${Date.now()}`,
+        title: msTitle.trim(),
+        description: msDesc.trim(),
+        target_date: msTargetDate,
+        type: msType,
+        completed: false,
+      };
+      onUpdatePlan({ ...plan, milestones: [...milestones, newMs] });
+    }
+
     setIsMilestoneModalOpen(false);
+    playChime("complete");
+  };
+
+  // Open Create / Edit Revision Modal
+  const handleOpenRevisionModal = (revision?: RevisionItem) => {
+    if (revision) {
+      setEditingRevision(revision);
+      setRevTopicName(revision.topicName);
+      setRevModuleTitle(revision.moduleTitle || "");
+      setRevStage(revision.stage || 1);
+      setRevIntervalDays(revision.intervalDays || 1);
+      setRevDueDate(revision.dueDate || new Date().toISOString().split("T")[0]);
+    } else {
+      setEditingRevision(null);
+      setRevTopicName("");
+      setRevModuleTitle("Manual Revision Queue");
+      setRevStage(1);
+      setRevIntervalDays(1);
+      setRevDueDate(new Date(Date.now() + 86400000).toISOString().split("T")[0]);
+    }
+    setIsRevisionModalOpen(true);
+  };
+
+  // Delete Revision
+  const handleDeleteRevision = (revId: string) => {
+    const target = revisions.find((r) => r.id === revId);
+    if (!confirm(`Are you sure you want to delete revision item "${target?.topicName || "this revision"}"?`)) {
+      return;
+    }
+    const updated = revisions.filter((r) => r.id !== revId);
+    onUpdatePlan({ ...plan, revisions: updated });
+    playChime("click");
+  };
+
+  // Save Revision (Create or Edit)
+  const handleSaveRevision = () => {
+    if (!revTopicName.trim()) return;
+
+    if (editingRevision) {
+      const updated = revisions.map((r) =>
+        r.id === editingRevision.id
+          ? {
+              ...r,
+              topicName: revTopicName.trim(),
+              moduleTitle: revModuleTitle.trim() || "Curriculum Focus",
+              stage: revStage,
+              intervalDays: revIntervalDays,
+              dueDate: revDueDate,
+            }
+          : r
+      );
+      onUpdatePlan({ ...plan, revisions: updated });
+    } else {
+      const newRev: RevisionItem = {
+        id: `rev_${Date.now()}`,
+        topicId: `topic_custom_${Date.now()}`,
+        topicName: revTopicName.trim(),
+        moduleTitle: revModuleTitle.trim() || "Manual Revision Queue",
+        stage: revStage,
+        intervalDays: revIntervalDays,
+        dueDate: revDueDate || new Date(Date.now() + 86400000).toISOString().split("T")[0],
+        completed: false,
+      };
+      onUpdatePlan({ ...plan, revisions: [...revisions, newRev] });
+    }
+
+    setIsRevisionModalOpen(false);
     playChime("complete");
   };
 
@@ -275,20 +396,6 @@ export function CurriculumRoadmapView({
         : m
     );
     onUpdatePlan({ ...plan, milestones: updated });
-    playChime("click");
-  };
-
-  // Delete Milestone
-  const handleDeleteMilestone = (msId: string) => {
-    const updated = milestones.filter((m) => m.id !== msId);
-    onUpdatePlan({ ...plan, milestones: updated });
-    playChime("click");
-  };
-
-  // Delete Spaced Revision
-  const handleDeleteRevision = (revId: string) => {
-    const updated = revisions.filter((r) => r.id !== revId);
-    onUpdatePlan({ ...plan, revisions: updated });
     playChime("click");
   };
 
@@ -570,24 +677,11 @@ export function CurriculumRoadmapView({
             </div>
             <button
               type="button"
-              onClick={() => {
-                const topicName = prompt("Enter completed topic name to schedule for revision:");
-                if (!topicName?.trim()) return;
-                const newRev: RevisionItem = {
-                  id: `rev_${Date.now()}`,
-                  topicId: `topic_custom_${Date.now()}`,
-                  topicName: topicName.trim(),
-                  moduleTitle: "Manual Revision Queue",
-                  stage: 1,
-                  intervalDays: 1,
-                  dueDate: new Date(Date.now() + 86400000).toISOString().split("T")[0],
-                  completed: false,
-                };
-                onUpdatePlan({ ...plan, revisions: [...revisions, newRev] });
-              }}
-              className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-xs font-semibold text-emerald-800 transition cursor-pointer"
+              onClick={() => handleOpenRevisionModal()}
+              className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-xs font-semibold text-emerald-800 transition cursor-pointer flex items-center gap-1.5"
             >
-              + Queue Revision
+              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>Queue Revision</span>
             </button>
           </div>
 
@@ -595,30 +689,40 @@ export function CurriculumRoadmapView({
             {revisions.map((rev) => (
               <div
                 key={rev.id}
-                className="p-4 rounded-xl bg-white border border-slate-200 space-y-3 shadow-2xs"
+                className="p-4 rounded-xl bg-white border border-slate-200 space-y-3 shadow-2xs flex flex-col justify-between"
               >
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    Stage {rev.stage} ({rev.intervalDays}d cycle)
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono text-slate-500">
-                      Due: {rev.dueDate}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      Stage {rev.stage} ({rev.intervalDays}d cycle)
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteRevision(rev.id)}
-                      className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
-                      title="Delete revision"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-mono text-slate-500 mr-1">
+                        Due: {rev.dueDate}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenRevisionModal(rev)}
+                        className="p-1 text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 rounded transition cursor-pointer"
+                        title="Edit Revision"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteRevision(rev.id)}
+                        className="p-1 text-slate-400 hover:text-red-700 hover:bg-red-50 rounded transition cursor-pointer"
+                        title="Delete Revision"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
-                </div>
 
-                <div>
-                  <h4 className="text-sm font-bold text-slate-900">{rev.topicName}</h4>
-                  <p className="text-xs text-slate-500">{rev.moduleTitle}</p>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900">{rev.topicName}</h4>
+                    <p className="text-xs text-slate-500">{rev.moduleTitle}</p>
+                  </div>
                 </div>
 
                 <div className="pt-2 flex items-center justify-between border-t border-slate-100">
@@ -653,16 +757,11 @@ export function CurriculumRoadmapView({
             </div>
             <button
               type="button"
-              onClick={() => {
-                setMsTitle("");
-                setMsDesc("");
-                setMsTargetDate(new Date(Date.now() + 86400000 * 7).toISOString().split("T")[0]);
-                setMsType("custom");
-                setIsMilestoneModalOpen(true);
-              }}
-              className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-xs font-semibold text-emerald-800 transition cursor-pointer"
+              onClick={() => handleOpenMilestoneModal()}
+              className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-xs font-semibold text-emerald-800 transition cursor-pointer flex items-center gap-1.5"
             >
-              + Add Milestone
+              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>Add Milestone</span>
             </button>
           </div>
 
@@ -709,14 +808,25 @@ export function CurriculumRoadmapView({
                   >
                     {ms.completed ? "Completed" : "In Progress"}
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteMilestone(ms.id)}
-                    className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
-                    title="Delete milestone"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+
+                  <div className="flex items-center gap-1 border-l border-slate-200 pl-2">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenMilestoneModal(ms)}
+                      className="p-1 text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 rounded transition cursor-pointer"
+                      title="Edit Milestone"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteMilestone(ms.id)}
+                      className="p-1 text-slate-400 hover:text-red-700 hover:bg-red-50 rounded transition cursor-pointer"
+                      title="Delete Milestone"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -876,7 +986,9 @@ export function CurriculumRoadmapView({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="text-base font-bold text-slate-900">Add Curriculum Milestone</h3>
+              <h3 className="text-base font-bold text-slate-900">
+                {editingMilestone ? "Edit Curriculum Milestone" : "Add Curriculum Milestone"}
+              </h3>
               <button
                 type="button"
                 onClick={() => setIsMilestoneModalOpen(false)}
@@ -920,21 +1032,162 @@ export function CurriculumRoadmapView({
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+            <div className="flex items-center justify-between gap-2 pt-3 border-t border-slate-100">
+              {editingMilestone ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const idToDelete = editingMilestone.id;
+                    setIsMilestoneModalOpen(false);
+                    handleDeleteMilestone(idToDelete);
+                  }}
+                  className="px-3 py-2 rounded-lg text-red-600 hover:bg-red-50 text-xs font-semibold transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete</span>
+                </button>
+              ) : (
+                <div />
+              )}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsMilestoneModalOpen(false)}
+                  className="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveMilestone}
+                  className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-xs font-semibold text-white transition shadow-xs cursor-pointer"
+                >
+                  {editingMilestone ? "Save Changes" : "Add Milestone"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* REVISION CREATE / EDIT MODAL */}
+      {isRevisionModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-fade-in"
+          onClick={() => setIsRevisionModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-6 space-y-4 shadow-xl text-slate-800"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="text-base font-bold text-slate-900">
+                {editingRevision ? "Edit Revision Topic" : "Queue Spaced Revision"}
+              </h3>
               <button
                 type="button"
-                onClick={() => setIsMilestoneModalOpen(false)}
-                className="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 transition cursor-pointer"
+                onClick={() => setIsRevisionModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 cursor-pointer"
               >
-                Cancel
+                <X className="w-4 h-4" />
               </button>
-              <button
-                type="button"
-                onClick={handleSaveMilestone}
-                className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-xs font-semibold text-white transition shadow-xs cursor-pointer"
-              >
-                Add Milestone
-              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">Topic Name *</label>
+                <input
+                  type="text"
+                  value={revTopicName}
+                  onChange={(e) => setRevTopicName(e.target.value)}
+                  placeholder="e.g. Asynchronous I/O & Event Loops"
+                  className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-900 focus:outline-none focus:border-emerald-500 focus:bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">Module / Context</label>
+                <input
+                  type="text"
+                  value={revModuleTitle}
+                  onChange={(e) => setRevModuleTitle(e.target.value)}
+                  placeholder="e.g. Module 2: Concurrency"
+                  className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-900 focus:outline-none focus:border-emerald-500 focus:bg-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Interval Cycle (Days)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={90}
+                    value={revIntervalDays}
+                    onChange={(e) => setRevIntervalDays(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-900 focus:outline-none focus:border-emerald-500 focus:bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Repetition Stage (1-5)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={5}
+                    value={revStage}
+                    onChange={(e) => setRevStage(Math.max(1, Math.min(5, parseInt(e.target.value) || 1)))}
+                    className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-900 focus:outline-none focus:border-emerald-500 focus:bg-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">Scheduled Due Date</label>
+                <input
+                  type="date"
+                  value={revDueDate}
+                  onChange={(e) => setRevDueDate(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-900 focus:outline-none focus:border-emerald-500 focus:bg-white"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-2 pt-3 border-t border-slate-100">
+              {editingRevision ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const idToDelete = editingRevision.id;
+                    setIsRevisionModalOpen(false);
+                    handleDeleteRevision(idToDelete);
+                  }}
+                  className="px-3 py-2 rounded-lg text-red-600 hover:bg-red-50 text-xs font-semibold transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete</span>
+                </button>
+              ) : (
+                <div />
+              )}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsRevisionModalOpen(false)}
+                  className="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveRevision}
+                  className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-xs font-semibold text-white transition shadow-xs cursor-pointer"
+                >
+                  {editingRevision ? "Save Changes" : "Queue Revision"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
