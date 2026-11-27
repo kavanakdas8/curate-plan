@@ -8,6 +8,7 @@ import React, {
 } from "react";
 
 import {
+    API_BASE_URL,
     AuthUser,
     authenticatedFetch,
     loginRequest,
@@ -44,7 +45,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 }
 
                 const response = await authenticatedFetch(
-                    `${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000"}/api/auth/me`
+                    `${API_BASE_URL}/api/auth/me`
                 );
 
                 if (!response.ok) {
