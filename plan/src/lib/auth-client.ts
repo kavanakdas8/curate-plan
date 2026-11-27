@@ -1,6 +1,5 @@
 const API_BASE_URL =
-    process.env.NEXT_PUBLIC_API_BASE_URL ??
-    "http://localhost:8000/";
+    (process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000").replace(/\/+$/, "");
 
 export interface AuthUser {
     id: string;
@@ -53,7 +52,7 @@ async function authPost<T>(
     endpoint: string,
     body?: unknown
 ): Promise<T> {
-    const response = await fetch(`${API_BASE_URL}/auth/${endpoint}`, {
+    const response = await fetch(`${API_BASE_URL}/api/auth/${endpoint}`, {
         method: "POST",
         credentials: "include",
         headers: body === undefined
@@ -107,7 +106,7 @@ export async function refreshAccessToken(): Promise<string | null> {
 
     refreshPromise = (async () => {
         try {
-            const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+            const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
                 method: "POST",
                 credentials: "include",
             });
@@ -173,7 +172,7 @@ export async function authenticatedFetch(
 
 export async function getCurrentUser(): Promise<AuthUser> {
     const response = await authenticatedFetch(
-        `${API_BASE_URL}/auth/me`,
+        `${API_BASE_URL}/api/auth/me`,
         { method: "GET" }
     );
 

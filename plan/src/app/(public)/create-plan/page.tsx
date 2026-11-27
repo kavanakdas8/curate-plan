@@ -42,7 +42,7 @@ export default function CreatePlanRoute() {
     };
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/generate-plan", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000"}/api/generate-plan`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -52,7 +52,7 @@ export default function CreatePlanRoute() {
         const errJson = await res.json().catch(() => null);
         throw new Error(
           errJson?.detail ||
-          `Server error (${res.status}): Failed to generate curriculum. Ensure the backend is active on port 8000.`
+          `Server error (${res.status}): Failed to generate curricu Please try again.`
         );
       }
 
