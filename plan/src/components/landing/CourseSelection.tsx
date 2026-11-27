@@ -344,7 +344,7 @@ export function CourseSelection({
               <div className="space-y-1">
                 <p className="font-semibold text-red-900">Curriculum Generation Failed</p>
                 <p>{generationError}</p>
-                <p className="text-[11px] text-red-700">Please verify the AI backend is active on port 8000 and try again.</p>
+                <p className="text-[11px] text-red-700">Try again.</p>
               </div>
             </div>
           )}
@@ -367,8 +367,8 @@ export function CourseSelection({
               disabled={isGenerating}
               onClick={handleConfirmStartLearning}
               className={`w-full sm:w-auto min-w-[260px] py-3.5 px-8 rounded-xl font-semibold text-sm sm:text-base flex items-center justify-center gap-2 transition shadow-sm ${isGenerating
-                  ? "bg-[#059669]/70 text-white cursor-not-allowed"
-                  : "bg-[#059669] hover:bg-[#047857] text-white cursor-pointer"
+                ? "bg-[#059669]/70 text-white cursor-not-allowed"
+                : "bg-[#059669] hover:bg-[#047857] text-white cursor-pointer"
                 }`}
             >
               {isGenerating ? (

@@ -1,4 +1,3 @@
-
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
@@ -27,7 +26,7 @@ type TutorPanelProps = {
 };
 
 const API_BASE_URL =
-    process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+    process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
 
 const STARTER_QUESTIONS = [
     "Explain a difficult concept simply",
