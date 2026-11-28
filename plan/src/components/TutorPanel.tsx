@@ -25,8 +25,7 @@ type TutorPanelProps = {
     onClose?: () => void;
 };
 
-const API_BASE_URL =
-    process.env.NEXT_PUBLIC_API_BASE_URL || "https://curateplan.onrender.com"
+const API_BASE_URL = "";
 
 const STARTER_QUESTIONS = [
     "Explain a difficult concept simply",

@@ -1,8 +1,7 @@
-
 import { SavedPlan } from "@/types/study";
 import { authenticatedFetch, API_BASE_URL } from "@/lib/auth-client";
 
-const CURRICULA_URL = `${API_BASE_URL}/api/curricula`;
+const CURRICULA_URL = "/api/curricula";
 
 async function handleResponse<T>(response: Response): Promise<T> {
     if (!response.ok) {

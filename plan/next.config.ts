@@ -1,12 +1,14 @@
+
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
   cacheComponents: true,
   partialPrefetching: true,
+
   experimental: {
     agentUpgrade: "security",
   },
+
   turbopack: {
     rules: {
       "*.css": {
@@ -14,6 +16,20 @@ const nextConfig: NextConfig = {
         as: "*.css",
       },
     },
+  },
+
+  async rewrites() {
+    const backend =
+      process.env.NODE_ENV === "development"
+        ? "http://localhost:8000"
+        : "https://curateplan.onrender.com";
+
+    return [
+      {
+        source: "/api/:path*",
+        destination: `${backend}/api/:path*`,
+      },
+    ];
   },
 };
 
