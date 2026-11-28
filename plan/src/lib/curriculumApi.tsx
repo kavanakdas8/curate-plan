@@ -1,5 +1,8 @@
+
 import { SavedPlan } from "@/types/study";
 import { authenticatedFetch, API_BASE_URL } from "@/lib/auth-client";
+
+const CURRICULA_URL = `${API_BASE_URL}/api/curricula`;
 
 async function handleResponse<T>(response: Response): Promise<T> {
     if (!response.ok) {
@@ -18,7 +21,7 @@ async function handleResponse<T>(response: Response): Promise<T> {
 
 // Fetch all saved curricula
 export async function fetchCurricula(): Promise<SavedPlan[]> {
-    const response = await authenticatedFetch(`${API_BASE_URL}/curricula`, {
+    const response = await authenticatedFetch(CURRICULA_URL, {
         method: "GET",
         cache: "no-store",
     });
@@ -30,7 +33,7 @@ export async function fetchCurricula(): Promise<SavedPlan[]> {
 export async function createCurriculum(
     plan: SavedPlan
 ): Promise<SavedPlan> {
-    const response = await authenticatedFetch(`${API_BASE_URL}/curricula`, {
+    const response = await authenticatedFetch(CURRICULA_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(plan),
@@ -45,7 +48,7 @@ export async function updateCurriculum(
     plan: SavedPlan
 ): Promise<SavedPlan> {
     const response = await authenticatedFetch(
-        `${API_BASE_URL}/curricula/${encodeURIComponent(id)}`,
+        `${CURRICULA_URL}/${encodeURIComponent(id)}`,
         {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
@@ -59,7 +62,7 @@ export async function updateCurriculum(
 // Delete a saved curriculum
 export async function deleteCurriculum(id: string): Promise<void> {
     const response = await authenticatedFetch(
-        `${API_BASE_URL}/curricula/${encodeURIComponent(id)}`,
+        `${CURRICULA_URL}/${encodeURIComponent(id)}`,
         { method: "DELETE" }
     );
 
