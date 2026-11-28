@@ -374,7 +374,7 @@ export function CourseSelection({
               {isGenerating ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Generating Curriculum with AI...</span>
+                  <span>Generating Curriculum...</span>
                 </>
               ) : (
                 <>

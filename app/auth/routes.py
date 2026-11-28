@@ -27,10 +27,8 @@ router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 REFRESH_COOKIE_NAME = "curateplan_refresh"
 REFRESH_COOKIE_MAX_AGE = 30 * 24 * 60 * 60
 
-# Keep false for local HTTP development.
-# Set COOKIE_SECURE=true when deployed behind HTTPS.
-COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() == "true"
-
+COOKIE_SECURE = os.getenv("COOKIE_SECURE", "true").lower() == "true"
+COOKIE_SAMESITE = "none" if COOKIE_SECURE else "lax"
 
 class RegisterRequest(BaseModel):
     name: str = Field(min_length=2, max_length=60)
@@ -43,22 +41,26 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=1, max_length=128)
 
 
+
 def set_refresh_cookie(response: Response, token: str):
     response.set_cookie(
         key=REFRESH_COOKIE_NAME,
         value=token,
         httponly=True,
-        secure=True,
-        samesite="none",
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
+        max_age=REFRESH_COOKIE_MAX_AGE,
+        path="/api/auth",
     )
+
 
 def clear_refresh_cookie(response: Response):
     response.delete_cookie(
         key=REFRESH_COOKIE_NAME,
         path="/api/auth",
         httponly=True,
-        secure=True,
-        samesite="none",
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
     )
 
 
