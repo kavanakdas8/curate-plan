@@ -26,7 +26,7 @@ type TutorPanelProps = {
 };
 
 const API_BASE_URL =
-    (process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000").replace(/\/+$/, "");
+    process.env.NEXT_PUBLIC_API_BASE_URL || "https://curateplan.onrender.com"
 
 const STARTER_QUESTIONS = [
     "Explain a difficult concept simply",

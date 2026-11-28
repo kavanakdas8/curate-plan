@@ -42,7 +42,7 @@ export default function CreatePlanRoute() {
     };
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000"}/api/generate-plan`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || "https://curateplan.onrender.com"}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
